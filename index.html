@@ -11,13 +11,59 @@
   <p>A personal dashboard for upcoming book releases.</p>
 
   <script>
-    // Sanity check: confirm JavaScript is running
-    console.log("Next Reads: JavaScript is running ✅");
+    // Temporary hardcoded data (will move to books.json next)
+    const books = [
+      {
+        title: "Example Future Novel",
+        author: "Jane Doe",
+        release_date: "2026-04-15",
+        status: "upcoming"
+      },
+      {
+        title: "Another Book",
+        author: "John Smith",
+        release_date: "2026-02-01",
+        status: "upcoming"
+      }
+    ];
 
-    // Also show something on the page so you don't need the console yet
-    const p = document.createElement("p");
-    p.textContent = "JavaScript is running ✅";
-    document.body.appendChild(p);
+    function renderTable(rows) {
+      const table = document.createElement("table");
+      table.border = "1";
+      table.cellPadding = "6";
+      table.cellSpacing = "0";
+
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Author</th>
+            <th>Release date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      `;
+
+      const tbody = table.querySelector("tbody");
+
+      for (const book of rows) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${book.title}</td>
+          <td>${book.author}</td>
+          <td>${book.release_date}</td>
+          <td>${book.status}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      return table;
+    }
+
+    // Insert the table into the page
+    const table = renderTable(books);
+    document.body.appendChild(table);
   </script>
 
 </body>
