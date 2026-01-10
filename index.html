@@ -157,66 +157,118 @@
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
     }
+function renderDashboard(books) {
+  const app = document.getElementById("app");
+  const today = new Date();
 
-    function renderDashboard(books) {
-      const app = document.getElementById("app");
-      const today = new Date();
+  const upcoming = [];
+  const waiting = [];
 
-      const upcoming = [];
-      const waiting = [];
+  for (const b of books) {
+    if (!b || !b.release_date) continue;
+    const release = parseISODate(b.release_date);
+    const delta = daysBetweenUTC(today, release);
 
-      for (const b of books) {
-        if (!b || !b.release_date) continue;
-        const release = parseISODate(b.release_date);
-        const delta = daysBetweenUTC(today, release);
-        if (delta >= 0) upcoming.push(b);
-        else waiting.push(b);
+    if (delta >= 0) {
+      upcoming.push(b);
+    } else {
+      if (!b.library || b.library.status !== "found") {
+        waiting.push(b);
       }
-
-      upcoming.sort((a, b) => a.release_date.localeCompare(b.release_date));
-      waiting.sort((a, b) => b.release_date.localeCompare(a.release_date));
-
-      function sectionHtml(title, rows, mode) {
-        if (!rows.length) {
-          return `<div style="margin-top:10px;">
-            <h3 style="margin:10px 0 8px; font-size:14px;">${title} (0)</h3>
-            <div class="muted">None.</div>
-          </div>`;
-        }
-
-        const rowsHtml = rows.map(book => {
-          const release = parseISODate(book.release_date);
-          const delta = daysBetweenUTC(today, release);
-          const daysLabel = mode === "upcoming" ? `in ${delta}d` : `+${Math.abs(delta)}d`;
-          const precision = book.release_date_precision ? ` (${escapeHtml(book.release_date_precision)})` : "";
-          const source = book.source ? ` · ${escapeHtml(book.source)}` : "";
-
-          return `
-            <tr>
-              <td>${escapeHtml(book.title || "")}</td>
-              <td>${escapeHtml(book.author || "")}</td>
-              <td>${escapeHtml(book.release_date)}${precision}</td>
-              <td>${daysLabel}</td>
-              <td>${escapeHtml(book.status || "upcoming")}${source}</td>
-            </tr>
-          `;
-        }).join("");
-
-        return `<div style="margin-top:10px;">
-          <h3 style="margin:10px 0 8px; font-size:14px;">${title} (${rows.length})</h3>
-          <table>
-            <thead>
-              <tr><th>Title</th><th>Author</th><th>Release</th><th>Days</th><th>Status</th></tr>
-            </thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-        </div>`;
-      }
-
-      app.innerHTML =
-        sectionHtml("Upcoming", upcoming, "upcoming") +
-        sectionHtml("Released (waiting for library)", waiting, "waiting");
     }
+  }
+
+  upcoming.sort((a, b) => a.release_date.localeCompare(b.release_date));
+  waiting.sort((a, b) => b.release_date.localeCompare(a.release_date));
+
+  function libraryLabel(b) {
+    if (!b.library || b.library.status === "unknown") return "Unknown";
+    if (b.library.status === "not_found") return "Not found";
+    if (b.library.status === "found") return "Found";
+    return "Unknown";
+  }
+
+  function sectionHtml(title, rows, mode) {
+    if (!rows.length) {
+      return `<div style="margin-top:10px;">
+        <h3 style="margin:10px 0 8px; font-size:14px;">${title} (0)</h3>
+        <div class="muted">None.</div>
+      </div>`;
+    }
+
+    const rowsHtml = rows.map((book, idx) => {
+      const release = parseISODate(book.release_date);
+      const delta = daysBetweenUTC(today, release);
+      const daysLabel = mode === "upcoming" ? `in ${delta}d` : `+${Math.abs(delta)}d`;
+      const precision = book.release_date_precision ? ` (${escapeHtml(book.release_date_precision)})` : "";
+      const lib = libraryLabel(book);
+      const canEdit = book.source === "google_books"; // Draft only
+
+      return `
+        <tr data-idx="${idx}">
+          <td>${escapeHtml(book.title || "")}</td>
+          <td>${escapeHtml(book.author || "")}</td>
+          <td>${escapeHtml(book.release_date)}${precision}</td>
+          <td>${daysLabel}</td>
+          <td>${lib}</td>
+          <td>
+            ${canEdit ? `
+              <button data-action="found">Found</button>
+              <button data-action="not_found">Not found</button>
+            ` : `<span class="muted">—</span>`}
+          </td>
+        </tr>`;
+    }).join("");
+
+    return `<div style="margin-top:10px;">
+      <h3 style="margin:10px 0 8px; font-size:14px;">${title} (${rows.length})</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Author</th>
+            <th>Release</th>
+            <th>Days</th>
+            <th>Library</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+  }
+
+  app.innerHTML =
+    sectionHtml("Upcoming", upcoming, "upcoming") +
+    sectionHtml("Released (waiting for library)", waiting, "waiting");
+
+  // Wire up buttons
+  app.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tr = btn.closest("tr");
+      const idx = Number(tr.dataset.idx);
+      const action = btn.dataset.action;
+      const book = books[idx];
+
+      if (!book.library) {
+        book.library = { status: "unknown", checked_at: null };
+      }
+
+      book.library.status = action === "found" ? "found" : "not_found";
+      book.library.checked_at = new Date().toISOString();
+
+      // Persist Draft changes only
+      const draft = loadDraft();
+      const updatedDraft = draft.map(d =>
+        d.title === book.title && d.author === book.author ? book : d
+      );
+
+      saveDraft(updatedDraft);
+      renderDashboard(books);
+    });
+  });
+}
+
 
     async function searchGoogleBooks(title, author) {
       const q = `intitle:${title} inauthor:${author}`;
