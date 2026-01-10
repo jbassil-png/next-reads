@@ -29,6 +29,7 @@
     textarea { width: 100%; min-height: 180px; padding: 10px; border-radius: 10px; border: 1px solid #ccc;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
     hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
+    a { color: #444; }
   </style>
 </head>
 <body>
@@ -40,7 +41,8 @@
     <section class="card">
       <h2>Add a book</h2>
 
-      <form id="validate-form" class="row">
+      <!-- NOTE: We intentionally do NOT submit this form. Validate is a plain button. -->
+      <form id="validate-form" class="row" autocomplete="off">
         <label>
           Title
           <input id="title" type="text" required>
@@ -51,7 +53,7 @@
           <input id="author" type="text" required>
         </label>
 
-        <button id="validate-btn" type="submit" class="primary">Validate</button>
+        <button id="validate-btn" type="button" class="primary">Validate</button>
       </form>
 
       <div id="selected" class="muted" style="margin-top:10px;"></div>
@@ -111,9 +113,9 @@
     }
 
     // Date precision handling (agreed defaults):
-    // YYYY      -> YYYY-12-31, precision "year"
-    // YYYY-MM   -> YYYY-MM-01, precision "month"
-    // YYYY-MM-DD-> exact, precision "day"
+    // YYYY       -> YYYY-12-31, precision "year"
+    // YYYY-MM    -> YYYY-MM-01, precision "month"
+    // YYYY-MM-DD -> exact, precision "day"
     function normalizePublishedDate(publishedDate) {
       if (!publishedDate || typeof publishedDate !== "string") return null;
 
@@ -164,6 +166,7 @@
       const waiting = [];
 
       for (const b of books) {
+        if (!b || !b.release_date) continue;
         const release = parseISODate(b.release_date);
         const delta = daysBetweenUTC(today, release);
         if (delta >= 0) upcoming.push(b);
@@ -185,13 +188,13 @@
           const release = parseISODate(book.release_date);
           const delta = daysBetweenUTC(today, release);
           const daysLabel = mode === "upcoming" ? `in ${delta}d` : `+${Math.abs(delta)}d`;
-          const precision = book.release_date_precision ? ` (${book.release_date_precision})` : "";
+          const precision = book.release_date_precision ? ` (${escapeHtml(book.release_date_precision)})` : "";
           const source = book.source ? ` · ${escapeHtml(book.source)}` : "";
 
           return `
             <tr>
-              <td>${escapeHtml(book.title)}</td>
-              <td>${escapeHtml(book.author)}</td>
+              <td>${escapeHtml(book.title || "")}</td>
+              <td>${escapeHtml(book.author || "")}</td>
               <td>${escapeHtml(book.release_date)}${precision}</td>
               <td>${daysLabel}</td>
               <td>${escapeHtml(book.status || "upcoming")}${source}</td>
@@ -217,4 +220,185 @@
 
     async function searchGoogleBooks(title, author) {
       const q = `intitle:${title} inauthor:${author}`;
-      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=5`;
+      const resp = await fetch(url);
+
+      // Helpful error detail (shown in console)
+      if (!resp.ok) {
+        const txt = await resp.text().catch(() => "");
+        throw new Error(`Google Books request failed: ${resp.status} ${resp.statusText} ${txt}`);
+      }
+
+      return await resp.json();
+    }
+
+    async function copyToClipboard(text) {
+      await navigator.clipboard.writeText(text);
+    }
+
+    (async function init() {
+      let draft = loadDraft();
+      let selectedBook = null;
+
+      const resultsEl = document.getElementById("results");
+      const selectedEl = document.getElementById("selected");
+      const addBtn = document.getElementById("add-btn");
+      const outputEl = document.getElementById("output");
+
+      async function refreshDashboard() {
+        const current = await loadBooksJson();
+        const repoBooks = Array.isArray(current.books) ? current.books : [];
+        const merged = [...draft, ...repoBooks];
+        renderDashboard(merged);
+      }
+
+      function clearSelection() {
+        selectedBook = null;
+        selectedEl.textContent = "";
+        addBtn.disabled = true;
+      }
+
+      function renderResults(items) {
+        resultsEl.innerHTML = "";
+
+        if (!items.length) {
+          resultsEl.innerHTML = `<div class="muted">No matches found. Try adjusting title/author.</div>`;
+          return;
+        }
+
+        for (const item of items) {
+          const info = item.volumeInfo || {};
+          const title = info.title || "(no title)";
+          const authors = Array.isArray(info.authors) ? info.authors.join(", ") : "(no authors)";
+          const publishedDate = info.publishedDate || "(no date)";
+          const norm = normalizePublishedDate(info.publishedDate);
+          const isbn13 = pickIsbn13(info.industryIdentifiers);
+          const link = info.infoLink || "";
+
+          const card = document.createElement("div");
+          card.className = "result";
+          card.innerHTML = `
+            <div class="result-title">${escapeHtml(title)}</div>
+            <div class="muted">${escapeHtml(authors)}</div>
+            <div class="muted">Published: ${escapeHtml(publishedDate)}${norm ? ` → Using: ${escapeHtml(norm.release_date)} (${escapeHtml(norm.precision)})` : ""}</div>
+            <div class="muted">${isbn13 ? `ISBN-13: ${escapeHtml(isbn13)}` : ""}</div>
+            <div class="actions">
+              <button type="button" data-use="1" ${norm ? "" : "disabled"}>Use</button>
+              ${link ? `<a class="muted" href="${escapeHtml(link)}" target="_blank" rel="noreferrer">View</a>` : ""}
+            </div>
+          `;
+
+          const useBtn = card.querySelector('button[data-use="1"]');
+          if (useBtn) {
+            useBtn.addEventListener("click", () => {
+              if (!norm) return;
+
+              selectedBook = {
+                title,
+                author: (authors.split(",")[0] || authors).trim(),
+                release_date: norm.release_date,
+                release_date_precision: norm.precision,
+                release_date_raw: norm.raw,
+                status: "upcoming",
+                source: "google_books",
+                ...(isbn13 ? { isbn: isbn13 } : {}),
+                ...(link ? { link } : {})
+              };
+
+              selectedEl.textContent =
+                `Selected: ${selectedBook.title} — ${selectedBook.author} — ${selectedBook.release_date} (${selectedBook.release_date_precision})`;
+
+              addBtn.disabled = false;
+            });
+          }
+
+          resultsEl.appendChild(card);
+        }
+      }
+
+      // Initial dashboard render
+      await refreshDashboard();
+
+      // Validate button click (no form submit)
+      document.getElementById("validate-btn").addEventListener("click", async () => {
+        clearSelection();
+
+        const title = document.getElementById("title").value.trim();
+        const author = document.getElementById("author").value.trim();
+
+        if (!title || !author) {
+          resultsEl.innerHTML = `<div class="muted">Please enter both title and author.</div>`;
+          return;
+        }
+
+        resultsEl.innerHTML = `<div class="muted">Searching…</div>`;
+
+        try {
+          const data = await searchGoogleBooks(title, author);
+          const items = Array.isArray(data.items) ? data.items : [];
+          renderResults(items);
+        } catch (err) {
+          console.error(err);
+          resultsEl.innerHTML = `<div class="muted">Search failed. Open DevTools Console for details.</div>`;
+        }
+      });
+
+      // Add selected to draft and refresh dashboard
+      addBtn.addEventListener("click", async () => {
+        if (!selectedBook) return;
+        draft = [selectedBook, ...draft];
+        saveDraft(draft);
+        clearSelection();
+        resultsEl.innerHTML = "";
+        await refreshDashboard();
+        alert("Added (saved locally as Draft).");
+      });
+
+      document.getElementById("clear-selection").addEventListener("click", () => {
+        clearSelection();
+        resultsEl.innerHTML = "";
+      });
+
+      // Generate updated books.json output (repo + draft)
+      document.getElementById("generate-json").addEventListener("click", async () => {
+        outputEl.value = "Generating…";
+        try {
+          const current = await loadBooksJson();
+          const repoBooks = Array.isArray(current.books) ? current.books : [];
+          const merged = [...draft, ...repoBooks];
+          merged.sort((a, b) => a.release_date.localeCompare(b.release_date));
+
+          const updated = {
+            meta: current.meta || { version: 1 },
+            books: merged
+          };
+
+          outputEl.value = JSON.stringify(updated, null, 2);
+        } catch (err) {
+          console.error(err);
+          outputEl.value = "Failed to generate.";
+        }
+      });
+
+      document.getElementById("copy-json").addEventListener("click", async () => {
+        if (!outputEl.value.trim()) return alert("Nothing to copy yet.");
+        try {
+          await copyToClipboard(outputEl.value);
+          alert("Copied.");
+        } catch {
+          alert("Could not copy automatically. Select the text and copy manually.");
+        }
+      });
+
+      document.getElementById("clear-draft").addEventListener("click", async () => {
+        if (!confirm("Clear local Draft? This only affects this browser.")) return;
+        draft = [];
+        saveDraft(draft);
+        outputEl.value = "";
+        await refreshDashboard();
+      });
+    })();
+  </script>
+
+</body>
+</html>
