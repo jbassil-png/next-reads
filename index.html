@@ -11,20 +11,9 @@
   <p>A personal dashboard for upcoming book releases.</p>
 
   <script>
-    // Temporary hardcoded data (will move to books.json next)
     const books = [
-      {
-        title: "Example Future Novel",
-        author: "Jane Doe",
-        release_date: "2026-04-15",
-        status: "upcoming"
-      },
-      {
-        title: "Another Book",
-        author: "John Smith",
-        release_date: "2026-02-01",
-        status: "upcoming"
-      }
+      { title: "Example Future Novel", author: "Jane Doe", release_date: "2026-04-15", status: "upcoming" },
+      { title: "Another Book", author: "John Smith", release_date: "2026-02-01", status: "upcoming" }
     ];
 
     function renderTable(rows) {
@@ -61,9 +50,7 @@
       return table;
     }
 
-    // Insert the table into the page
-    const table = renderTable(books);
-    document.body.appendChild(table);
+    document.body.appendChild(renderTable(books));
   </script>
 
 </body>
