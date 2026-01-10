@@ -4,83 +4,134 @@
   <meta charset="utf-8">
   <title>Next Reads</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; max-width: 1050px; }
+    h1 { margin: 0 0 6px; }
+    p { margin: 0 0 18px; color: #444; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; }
+    .card h2 { margin: 0 0 10px; font-size: 16px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+    label { display: grid; gap: 6px; font-size: 13px; color: #333; }
+    input { padding: 9px 10px; border-radius: 10px; border: 1px solid #ccc; }
+    button { padding: 9px 12px; border-radius: 10px; border: 1px solid #ccc; background: #f7f7f7; cursor: pointer; }
+    button.primary { background: #111; color: #fff; border-color: #111; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .muted { color: #666; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #eee; text-align: left; padding: 8px 6px; font-size: 14px; vertical-align: top; }
+    th { color: #555; font-weight: 600; }
+    .results { display: grid; gap: 10px; }
+    .result { border: 1px solid #eee; border-radius: 10px; padding: 10px; display: grid; gap: 6px; }
+    .result-title { font-weight: 650; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    textarea { width: 100%; min-height: 180px; padding: 10px; border-radius: 10px; border: 1px solid #ccc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
+    hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
+  </style>
 </head>
 <body>
 
   <h1>Next Reads</h1>
-  <p>A personal dashboard for upcoming book releases.</p>
+  <p>A personal dashboard for upcoming book releases. Add by title+author → validate → add.</p>
 
-  <section>
-    <h2>Add a book (Inbox)</h2>
+  <div class="grid">
+    <section class="card">
+      <h2>Add a book</h2>
 
-    <form id="add-form">
-      <div>
+      <form id="validate-form" class="row">
         <label>
-          Title*:
+          Title
           <input id="title" type="text" required>
         </label>
-      </div>
 
-      <div>
         <label>
-          Author*:
+          Author
           <input id="author" type="text" required>
         </label>
+
+        <button id="validate-btn" type="submit" class="primary">Validate</button>
+      </form>
+
+      <div id="selected" class="muted" style="margin-top:10px;"></div>
+
+      <div class="actions">
+        <button id="add-btn" type="button" class="primary" disabled>Add to list</button>
+        <button id="clear-selection" type="button">Clear selection</button>
       </div>
 
-      <div>
-        <label>
-          Release date* (YYYY-MM-DD):
-          <input id="release_date" type="date" required>
-        </label>
+      <hr>
+
+      <div class="muted">
+        Validation uses Google Books. If only a year/month is available, we store a sortable date and a precision flag.
       </div>
 
-      <div>
-        <label>
-          ISBN (optional):
-          <input id="isbn" type="text" inputmode="numeric" placeholder="978...">
-        </label>
+      <div id="results" class="results" style="margin-top:12px;"></div>
+    </section>
+
+    <section class="card">
+      <h2>Dashboard</h2>
+      <div id="app" class="muted">Loading…</div>
+    </section>
+
+    <section class="card">
+      <h2>Save changes to GitHub</h2>
+      <div class="muted">
+        This app can’t directly edit <code>books.json</code> yet, so new books are saved in your browser as a “Draft”.
+        When ready, generate an updated <code>books.json</code>, paste it into GitHub, and commit.
       </div>
 
-      <div>
-        <label>
-          Link (optional):
-          <input id="link" type="url" placeholder="https://...">
-        </label>
+      <div class="actions">
+        <button id="generate-json" type="button">Generate updated books.json</button>
+        <button id="copy-json" type="button">Copy output</button>
+        <button id="clear-draft" type="button">Clear local Draft</button>
       </div>
 
-      <button type="submit">Add to inbox</button>
-    </form>
-
-    <p>
-      <button id="export-inbox">Export inbox JSON</button>
-      <button id="clear-inbox">Clear inbox</button>
-    </p>
-
-    <pre id="export-output" style="white-space: pre-wrap;"></pre>
-  </section>
-
-  <hr>
-
-  <div id="app"></div>
+      <textarea id="output" placeholder="Click “Generate updated books.json”…"></textarea>
+    </section>
+  </div>
 
   <script>
-    const INBOX_KEY = "next_reads_inbox_v1";
+    const DRAFT_KEY = "next_reads_draft_v1";
 
-    function loadInbox() {
-      const raw = localStorage.getItem(INBOX_KEY);
+    function loadDraft() {
+      const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return [];
       try { return JSON.parse(raw); } catch { return []; }
     }
 
-    function saveInbox(inbox) {
-      localStorage.setItem(INBOX_KEY, JSON.stringify(inbox));
+    function saveDraft(draft) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     }
 
-    async function loadBooks() {
-      const response = await fetch("books.json");
-      const data = await response.json();
-      return data.books;
+    async function loadBooksJson() {
+      const response = await fetch("books.json", { cache: "no-store" });
+      return await response.json();
+    }
+
+    // Date precision handling (agreed defaults):
+    // YYYY      -> YYYY-12-31, precision "year"
+    // YYYY-MM   -> YYYY-MM-01, precision "month"
+    // YYYY-MM-DD-> exact, precision "day"
+    function normalizePublishedDate(publishedDate) {
+      if (!publishedDate || typeof publishedDate !== "string") return null;
+
+      if (/^\d{4}$/.test(publishedDate)) {
+        return { release_date: `${publishedDate}-12-31`, precision: "year", raw: publishedDate };
+      }
+      if (/^\d{4}-\d{2}$/.test(publishedDate)) {
+        return { release_date: `${publishedDate}-01`, precision: "month", raw: publishedDate };
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(publishedDate)) {
+        return { release_date: publishedDate, precision: "day", raw: publishedDate };
+      }
+      return null;
+    }
+
+    function parseISODate(dateStr) {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d));
     }
 
     function daysBetweenUTC(a, b) {
@@ -90,134 +141,80 @@
       return Math.round((bUTC - aUTC) / msPerDay);
     }
 
-    function parseISODate(dateStr) {
-      const [y, m, d] = dateStr.split("-").map(Number);
-      return new Date(Date.UTC(y, m - 1, d));
+    function pickIsbn13(industryIdentifiers) {
+      if (!Array.isArray(industryIdentifiers)) return null;
+      const isbn13 = industryIdentifiers.find(x => x && x.type === "ISBN_13" && x.identifier);
+      return isbn13 ? isbn13.identifier : null;
     }
 
-    function renderTable(rows, mode) {
-      const table = document.createElement("table");
-      table.border = "1";
-      table.cellPadding = "6";
-      table.cellSpacing = "0";
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
 
-      table.innerHTML = `
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Author</th>
-            <th>Release date</th>
-            <th>Days</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      `;
-
-      const tbody = table.querySelector("tbody");
+    function renderDashboard(books) {
+      const app = document.getElementById("app");
       const today = new Date();
 
-      for (const book of rows) {
-        const release = parseISODate(book.release_date);
+      const upcoming = [];
+      const waiting = [];
+
+      for (const b of books) {
+        const release = parseISODate(b.release_date);
         const delta = daysBetweenUTC(today, release);
-
-        const daysLabel =
-          mode === "upcoming"
-            ? `in ${delta}d`
-            : `+${Math.abs(delta)}d`;
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${book.title}</td>
-          <td>${book.author}</td>
-          <td>${book.release_date}</td>
-          <td>${daysLabel}</td>
-          <td>${book.status}</td>
-        `;
-        tbody.appendChild(tr);
+        if (delta >= 0) upcoming.push(b);
+        else waiting.push(b);
       }
 
-      return table;
-    }
+      upcoming.sort((a, b) => a.release_date.localeCompare(b.release_date));
+      waiting.sort((a, b) => b.release_date.localeCompare(a.release_date));
 
-    function renderSection(title, rows, mode) {
-      const section = document.createElement("section");
-      section.style.marginTop = "18px";
-
-      const h2 = document.createElement("h2");
-      h2.textContent = `${title} (${rows.length})`;
-
-      section.appendChild(h2);
-
-      if (rows.length === 0) {
-        const p = document.createElement("p");
-        p.textContent = "None.";
-        section.appendChild(p);
-        return section;
-      }
-
-      section.appendChild(renderTable(rows, mode));
-      return section;
-    }
-
-    function renderInbox(inbox) {
-      const out = document.getElementById("export-output");
-      out.textContent = "";
-
-      // Simple inline view: list titles
-      if (inbox.length === 0) {
-        out.textContent = "Inbox is empty.";
-        return;
-      }
-
-      out.textContent = inbox.map((b, i) => `${i + 1}. ${b.title} — ${b.author} (${b.release_date})`).join("\n");
-    }
-
-    async function copyToClipboard(text) {
-      await navigator.clipboard.writeText(text);
-    }
-
-    (async function init() {
-      // Inbox wiring
-      let inbox = loadInbox();
-      renderInbox(inbox);
-
-      const form = document.getElementById("add-form");
-      form.addEventListener("submit", (e) => {
-        e.preventDefault();
-
-        const title = document.getElementById("title").value.trim();
-        const author = document.getElementById("author").value.trim();
-        const release_date = document.getElementById("release_date").value;
-        const isbn = document.getElementById("isbn").value.trim();
-        const link = document.getElementById("link").value.trim();
-
-        const item = {
-          title,
-          author,
-          release_date,
-          status: "upcoming",
-          ...(isbn ? { isbn } : {}),
-          ...(link ? { link } : {})
-        };
-
-        inbox = [item, ...inbox];
-        saveInbox(inbox);
-        renderInbox(inbox);
-        form.reset();
-      });
-
-      document.getElementById("export-inbox").addEventListener("click", async () => {
-        const payload = JSON.stringify(inbox, null, 2);
-        const out = document.getElementById("export-output");
-        out.textContent = payload;
-
-        try {
-          await copyToClipboard(payload);
-          alert("Inbox JSON copied to clipboard.");
-        } catch {
-          alert("Could not copy to clipboard. JSON is shown on the page.");
+      function sectionHtml(title, rows, mode) {
+        if (!rows.length) {
+          return `<div style="margin-top:10px;">
+            <h3 style="margin:10px 0 8px; font-size:14px;">${title} (0)</h3>
+            <div class="muted">None.</div>
+          </div>`;
         }
-      });
 
-      document.getElementById("clear-inbox").addEventListener("click",
+        const rowsHtml = rows.map(book => {
+          const release = parseISODate(book.release_date);
+          const delta = daysBetweenUTC(today, release);
+          const daysLabel = mode === "upcoming" ? `in ${delta}d` : `+${Math.abs(delta)}d`;
+          const precision = book.release_date_precision ? ` (${book.release_date_precision})` : "";
+          const source = book.source ? ` · ${escapeHtml(book.source)}` : "";
+
+          return `
+            <tr>
+              <td>${escapeHtml(book.title)}</td>
+              <td>${escapeHtml(book.author)}</td>
+              <td>${escapeHtml(book.release_date)}${precision}</td>
+              <td>${daysLabel}</td>
+              <td>${escapeHtml(book.status || "upcoming")}${source}</td>
+            </tr>
+          `;
+        }).join("");
+
+        return `<div style="margin-top:10px;">
+          <h3 style="margin:10px 0 8px; font-size:14px;">${title} (${rows.length})</h3>
+          <table>
+            <thead>
+              <tr><th>Title</th><th>Author</th><th>Release</th><th>Days</th><th>Status</th></tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>`;
+      }
+
+      app.innerHTML =
+        sectionHtml("Upcoming", upcoming, "upcoming") +
+        sectionHtml("Released (waiting for library)", waiting, "waiting");
+    }
+
+    async function searchGoogleBooks(title, author) {
+      const q = `intitle:${title} inauthor:${author}`;
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent
