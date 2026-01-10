@@ -9,54 +9,128 @@
 
   <h1>Next Reads</h1>
   <p>A personal dashboard for upcoming book releases.</p>
-  
-<script>
-  async function loadBooks() {
-    const response = await fetch("books.json");
-    const data = await response.json();
-    return data.books;
-  }
 
-  function renderTable(rows) {
-    const table = document.createElement("table");
-    table.border = "1";
-    table.cellPadding = "6";
-    table.cellSpacing = "0";
+  <div id="app"></div>
 
-    table.innerHTML = `
-      <thead>
-        <tr>
-          <th>Title</th>
-          <th>Author</th>
-          <th>Release date</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    `;
-
-    const tbody = table.querySelector("tbody");
-
-    for (const book of rows) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${book.title}</td>
-        <td>${book.author}</td>
-        <td>${book.release_date}</td>
-        <td>${book.status}</td>
-      `;
-      tbody.appendChild(tr);
+  <script>
+    async function loadBooks() {
+      const response = await fetch("books.json");
+      const data = await response.json();
+      return data.books;
     }
 
-    return table;
-  }
+    function daysBetweenUTC(a, b) {
+      // Whole-day difference (UTC) between dates a and b
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const aUTC = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
+      const bUTC = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
+      return Math.round((bUTC - aUTC) / msPerDay);
+    }
 
-  (async function init() {
-    const books = await loadBooks();
-    document.body.appendChild(renderTable(books));
-  })();
-</script>
+    function parseISODate(dateStr) {
+      // Expects YYYY-MM-DD
+      const [y, m, d] = dateStr.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d));
+    }
 
+    function renderTable(rows, mode) {
+      const table = document.createElement("table");
+      table.border = "1";
+      table.cellPadding = "6";
+      table.cellSpacing = "0";
+
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Author</th>
+            <th>Release date</th>
+            <th>Days</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      `;
+
+      const tbody = table.querySelector("tbody");
+      const today = new Date();
+
+      for (const book of rows) {
+        const release = parseISODate(book.release_date);
+        const delta = daysBetweenUTC(today, release); // positive = in the future
+
+        const daysLabel =
+          mode === "upcoming"
+            ? `in ${delta}d`
+            : `+${Math.abs(delta)}d`;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${book.title}</td>
+          <td>${book.author}</td>
+          <td>${book.release_date}</td>
+          <td>${daysLabel}</td>
+          <td>${book.status}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      return table;
+    }
+
+    function renderSection(title, rows, mode) {
+      const section = document.createElement("section");
+      section.style.marginTop = "18px";
+
+      const h2 = document.createElement("h2");
+      h2.textContent = `${title} (${rows.length})`;
+
+      section.appendChild(h2);
+
+      if (rows.length === 0) {
+        const p = document.createElement("p");
+        p.textContent = "None.";
+        section.appendChild(p);
+        return section;
+      }
+
+      section.appendChild(renderTable(rows, mode));
+      return section;
+    }
+
+    (async function init() {
+      const app = document.getElementById("app");
+      app.textContent = "Loading…";
+
+      try {
+        const books = await loadBooks();
+        app.textContent = "";
+
+        const today = new Date();
+
+        const upcoming = [];
+        const waiting = [];
+
+        for (const b of books) {
+          const release = parseISODate(b.release_date);
+          const delta = daysBetweenUTC(today, release);
+
+          if (delta >= 0) upcoming.push(b);
+          else waiting.push(b);
+        }
+
+        upcoming.sort((a, b) => a.release_date.localeCompare(b.release_date));
+        waiting.sort((a, b) => b.release_date.localeCompare(a.release_date)); // most recent releases first
+
+        app.appendChild(renderSection("Upcoming", upcoming, "upcoming"));
+        app.appendChild(renderSection("Released (waiting for library)", waiting, "waiting"));
+
+      } catch (err) {
+        console.error(err);
+        app.textContent = "Failed to load books.";
+      }
+    })();
+  </script>
 
 </body>
 </html>
