@@ -10,9 +10,73 @@
   <h1>Next Reads</h1>
   <p>A personal dashboard for upcoming book releases.</p>
 
+  <section>
+    <h2>Add a book (Inbox)</h2>
+
+    <form id="add-form">
+      <div>
+        <label>
+          Title*:
+          <input id="title" type="text" required>
+        </label>
+      </div>
+
+      <div>
+        <label>
+          Author*:
+          <input id="author" type="text" required>
+        </label>
+      </div>
+
+      <div>
+        <label>
+          Release date* (YYYY-MM-DD):
+          <input id="release_date" type="date" required>
+        </label>
+      </div>
+
+      <div>
+        <label>
+          ISBN (optional):
+          <input id="isbn" type="text" inputmode="numeric" placeholder="978...">
+        </label>
+      </div>
+
+      <div>
+        <label>
+          Link (optional):
+          <input id="link" type="url" placeholder="https://...">
+        </label>
+      </div>
+
+      <button type="submit">Add to inbox</button>
+    </form>
+
+    <p>
+      <button id="export-inbox">Export inbox JSON</button>
+      <button id="clear-inbox">Clear inbox</button>
+    </p>
+
+    <pre id="export-output" style="white-space: pre-wrap;"></pre>
+  </section>
+
+  <hr>
+
   <div id="app"></div>
 
   <script>
+    const INBOX_KEY = "next_reads_inbox_v1";
+
+    function loadInbox() {
+      const raw = localStorage.getItem(INBOX_KEY);
+      if (!raw) return [];
+      try { return JSON.parse(raw); } catch { return []; }
+    }
+
+    function saveInbox(inbox) {
+      localStorage.setItem(INBOX_KEY, JSON.stringify(inbox));
+    }
+
     async function loadBooks() {
       const response = await fetch("books.json");
       const data = await response.json();
@@ -20,7 +84,6 @@
     }
 
     function daysBetweenUTC(a, b) {
-      // Whole-day difference (UTC) between dates a and b
       const msPerDay = 24 * 60 * 60 * 1000;
       const aUTC = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
       const bUTC = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
@@ -28,7 +91,6 @@
     }
 
     function parseISODate(dateStr) {
-      // Expects YYYY-MM-DD
       const [y, m, d] = dateStr.split("-").map(Number);
       return new Date(Date.UTC(y, m - 1, d));
     }
@@ -57,7 +119,7 @@
 
       for (const book of rows) {
         const release = parseISODate(book.release_date);
-        const delta = daysBetweenUTC(today, release); // positive = in the future
+        const delta = daysBetweenUTC(today, release);
 
         const daysLabel =
           mode === "upcoming"
@@ -98,39 +160,64 @@
       return section;
     }
 
-    (async function init() {
-      const app = document.getElementById("app");
-      app.textContent = "Loading…";
+    function renderInbox(inbox) {
+      const out = document.getElementById("export-output");
+      out.textContent = "";
 
-      try {
-        const books = await loadBooks();
-        app.textContent = "";
-
-        const today = new Date();
-
-        const upcoming = [];
-        const waiting = [];
-
-        for (const b of books) {
-          const release = parseISODate(b.release_date);
-          const delta = daysBetweenUTC(today, release);
-
-          if (delta >= 0) upcoming.push(b);
-          else waiting.push(b);
-        }
-
-        upcoming.sort((a, b) => a.release_date.localeCompare(b.release_date));
-        waiting.sort((a, b) => b.release_date.localeCompare(a.release_date)); // most recent releases first
-
-        app.appendChild(renderSection("Upcoming", upcoming, "upcoming"));
-        app.appendChild(renderSection("Released (waiting for library)", waiting, "waiting"));
-
-      } catch (err) {
-        console.error(err);
-        app.textContent = "Failed to load books.";
+      // Simple inline view: list titles
+      if (inbox.length === 0) {
+        out.textContent = "Inbox is empty.";
+        return;
       }
-    })();
-  </script>
 
-</body>
-</html>
+      out.textContent = inbox.map((b, i) => `${i + 1}. ${b.title} — ${b.author} (${b.release_date})`).join("\n");
+    }
+
+    async function copyToClipboard(text) {
+      await navigator.clipboard.writeText(text);
+    }
+
+    (async function init() {
+      // Inbox wiring
+      let inbox = loadInbox();
+      renderInbox(inbox);
+
+      const form = document.getElementById("add-form");
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const title = document.getElementById("title").value.trim();
+        const author = document.getElementById("author").value.trim();
+        const release_date = document.getElementById("release_date").value;
+        const isbn = document.getElementById("isbn").value.trim();
+        const link = document.getElementById("link").value.trim();
+
+        const item = {
+          title,
+          author,
+          release_date,
+          status: "upcoming",
+          ...(isbn ? { isbn } : {}),
+          ...(link ? { link } : {})
+        };
+
+        inbox = [item, ...inbox];
+        saveInbox(inbox);
+        renderInbox(inbox);
+        form.reset();
+      });
+
+      document.getElementById("export-inbox").addEventListener("click", async () => {
+        const payload = JSON.stringify(inbox, null, 2);
+        const out = document.getElementById("export-output");
+        out.textContent = payload;
+
+        try {
+          await copyToClipboard(payload);
+          alert("Inbox JSON copied to clipboard.");
+        } catch {
+          alert("Could not copy to clipboard. JSON is shown on the page.");
+        }
+      });
+
+      document.getElementById("clear-inbox").addEventListener("click",
