@@ -293,17 +293,37 @@
             useBtn.addEventListener("click", () => {
               if (!norm) return;
 
-              selectedBook = {
-                title,
-                author: (authors.split(",")[0] || authors).trim(),
-                release_date: norm.release_date,
-                release_date_precision: norm.precision,
-                release_date_raw: norm.raw,
-                status: "upcoming",
-                source: "google_books",
-                ...(isbn13 ? { isbn: isbn13 } : {}),
-                ...(link ? { link } : {})
-              };
+selectedBook = {
+  title,
+  author: (authors.split(",")[0] || authors).trim(),
+  release_date: norm.release_date,
+  release_date_precision: norm.precision,
+  release_date_raw: norm.raw,
+  status: "upcoming",
+  source: "google_books",
+
+  library: {
+    status: "unknown",       // unknown | not_found | found
+    checked_at: null
+  },
+
+  notifications: {
+    on_release: true,
+    on_library: true
+  },
+
+  reminder_flags: {
+    "30d": false,
+    "14d": false,
+    "7d": false,
+    "1d": false,
+    "release_day": false
+  },
+
+  ...(isbn13 ? { isbn: isbn13 } : {}),
+  ...(link ? { link } : {})
+};
+
 
               selectedEl.textContent =
                 `Selected: ${selectedBook.title} — ${selectedBook.author} — ${selectedBook.release_date} (${selectedBook.release_date_precision})`;
