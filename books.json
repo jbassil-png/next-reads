@@ -2,6 +2,6 @@
   "meta": { "version": 1 },
   "books": [
     { "title": "Example Future Novel", "author": "Jane Doe", "release_date": "2026-04-15", "status": "upcoming" },
-    { "title": "Another Book (edited)", "author": "John Smith", "release_date": "2026-02-01", "status": "upcoming" }
+    { "title": "Another Book (edited)", "author": "John Smith", "release_date": "2025-02-01", "status": "upcoming" }
   ]
 }
