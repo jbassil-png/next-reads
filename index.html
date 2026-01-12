@@ -213,9 +213,11 @@ function getNextReminder(book, today) {
 function renderDashboard(books) {
   const app = document.getElementById("app");
   const today = new Date();
+  const SOON_DAYS = 30;
 
-  const upcoming = [];
-  const waiting = [];
+  const published = [];
+  const comingSoon = [];
+  const comingLater = [];
 
   for (const b of books) {
     if (!b || !b.release_date) continue;
@@ -223,15 +225,166 @@ function renderDashboard(books) {
     const delta = getDaysUntilRelease(b, today);
     if (delta === null) continue;
 
-    if (delta >= 0) {
-      upcoming.push(b);
-    } else {
-      // released already; only "waiting" if not found in library
-      if (!b.library || b.library.status !== "found") {
-        waiting.push(b);
-      }
-    }
+    if (delta < 0) published.push(b);
+    else if (delta <= SOON_DAYS) comingSoon.push(b);
+    else comingLater.push(b);
   }
+
+  // Sorting
+  published.sort((a, b) => b.release_date.localeCompare(a.release_date));     // most recent first
+  comingSoon.sort((a, b) => a.release_date.localeCompare(b.release_date));   // soonest first
+  comingLater.sort((a, b) => a.release_date.localeCompare(b.release_date));  // soonest first
+
+  function libraryLabel(b) {
+    if (!b.library || b.library.status === "unknown") return "Unknown";
+    if (b.library.status === "not_found") return "Not found";
+    if (b.library.status === "found") return "Found";
+    return "Unknown";
+  }
+
+  function reminderLabel(b) {
+    const dueKey = getReminderDueTodayKey(b, today);
+    if (dueKey) return { text: `Due today: ${dueKey}`, dueKey };
+
+    const next = getNextReminder(b, today);
+    if (!next) return { text: "—", dueKey: null };
+
+    if (next.inDays === 0) return { text: `Due today: ${next.key}`, dueKey: next.key };
+    return { text: `Next: ${next.key} (in ${next.inDays}d)`, dueKey: null };
+  }
+
+  function sectionHtml(title, subtitle, rows, mode) {
+    // mode: "published" | "soon" | "later" (just for the Days label)
+    const subtitleHtml = subtitle
+      ? `<div class="muted" style="margin:-2px 0 10px;">${subtitle}</div>`
+      : "";
+
+    if (!rows.length) {
+      return `
+        <div style="margin-top:10px;">
+          <h3 style="margin:10px 0 4px; font-size:14px;">${title} (0)</h3>
+          ${subtitleHtml}
+          <div class="muted">None.</div>
+        </div>`;
+    }
+
+    const rowsHtml = rows.map((book, idx) => {
+      const delta = getDaysUntilRelease(book, today);
+      const daysLabel =
+        mode === "published" ? `+${Math.abs(delta)}d` : `in ${delta}d`;
+
+      const precision = book.release_date_precision ? ` (${escapeHtml(book.release_date_precision)})` : "";
+      const lib = libraryLabel(book);
+
+      const canEdit = book.source === "google_books"; // Draft-only edits
+      const r = reminderLabel(book);
+
+      return `
+        <tr data-idx="${idx}">
+          <td>${escapeHtml(book.title || "")}</td>
+          <td>${escapeHtml(book.author || "")}</td>
+          <td>${escapeHtml(book.release_date)}${precision}</td>
+          <td>${daysLabel}</td>
+          <td>${lib}</td>
+          <td>${escapeHtml(r.text)}</td>
+          <td>
+            ${canEdit ? `
+              <button data-action="found">Found</button>
+              <button data-action="not_found">Not found</button>
+              ${r.dueKey ? `<button data-action="mark_sent" data-reminder="${escapeHtml(r.dueKey)}">Mark sent</button>` : ``}
+            ` : `<span class="muted">—</span>`}
+          </td>
+        </tr>`;
+    }).join("");
+
+    return `
+      <div style="margin-top:10px;">
+        <h3 style="margin:10px 0 4px; font-size:14px;">${title} (${rows.length})</h3>
+        ${subtitleHtml}
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Release</th>
+              <th>Days</th>
+              <th>Library</th>
+              <th>Reminders</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`;
+  }
+
+  // Always render all three sections (even if empty)
+  app.innerHTML =
+    sectionHtml(
+      "Published",
+      "Already released. Track library availability / holds here.",
+      published,
+      "published"
+    ) +
+    sectionHtml(
+      "Coming Soon",
+      `Publishing within the next ${SOON_DAYS} days.`,
+      comingSoon,
+      "soon"
+    ) +
+    sectionHtml(
+      "Coming Later",
+      `Publishing more than ${SOON_DAYS} days from now.`,
+      comingLater,
+      "later"
+    );
+
+  // Wire up buttons (Draft books only)
+  app.querySelectorAll("button[data-action]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tr = btn.closest("tr");
+      const idx = Number(tr.dataset.idx);
+      const action = btn.dataset.action;
+
+      // IMPORTANT: idx is per-section, but we rendered each section independently.
+      // To keep this simple and reliable, we’ll recompute a single flat list mapping:
+      // We'll locate the matching book row by its title+author+release_date from DOM.
+      const tds = tr.querySelectorAll("td");
+      const rowTitle = tds[0]?.textContent || "";
+      const rowAuthor = tds[1]?.textContent || "";
+      const rowRelease = tds[2]?.textContent?.slice(0, 10) || ""; // "YYYY-MM-DD" portion
+
+      const book = books.find(b =>
+        (b.title || "") === rowTitle &&
+        (b.author || "") === rowAuthor &&
+        (b.release_date || "") === rowRelease
+      );
+      if (!book) return;
+
+      if (action === "found" || action === "not_found") {
+        if (!book.library) book.library = { status: "unknown", checked_at: null };
+        book.library.status = action === "found" ? "found" : "not_found";
+        book.library.checked_at = new Date().toISOString();
+      }
+
+      if (action === "mark_sent") {
+        const key = btn.dataset.reminder;
+        if (book.reminder_flags && key && Object.prototype.hasOwnProperty.call(book.reminder_flags, key)) {
+          book.reminder_flags[key] = true;
+        }
+      }
+
+      const draft = loadDraft();
+      const updatedDraft = draft.map(d =>
+        d.title === book.title && d.author === book.author ? book : d
+      );
+
+      saveDraft(updatedDraft);
+      renderDashboard(books);
+    });
+  });
+}
+
 
   upcoming.sort((a, b) => a.release_date.localeCompare(b.release_date));
   waiting.sort((a, b) => b.release_date.localeCompare(a.release_date));
