@@ -620,12 +620,19 @@ function renderDashboard(books) {
       const addBtn = document.getElementById("add-btn");
       const outputEl = document.getElementById("output");
 
-      async function refreshDashboard() {
-        const current = await loadBooksJson();
-        const repoBooks = Array.isArray(current.books) ? current.books : [];
-        const merged = [...draft, ...repoBooks];
-        renderDashboard(merged);
-      }
+   async function refreshDashboard() {
+  try {
+    const current = await loadBooksJson();
+    const repoBooks = Array.isArray(current.books) ? current.books : [];
+    const merged = [...draft, ...repoBooks];
+    renderDashboard(merged);
+  } catch (err) {
+    console.error(err);
+    document.getElementById("app").textContent = `Error loading dashboard: ${err?.message || err}`;
+    throw err;
+  }
+}
+
 
       function clearSelection() {
         selectedBook = null;
@@ -712,7 +719,13 @@ selectedBook = {
       }
 
       // Initial dashboard render
-      await refreshDashboard();
+try {
+  await refreshDashboard();
+} catch (err) {
+  console.error(err);
+  document.getElementById("app").textContent = `Error loading dashboard: ${err?.message || err}`;
+}
+
 
       // Validate button click (no form submit)
       document.getElementById("validate-btn").addEventListener("click", async () => {
