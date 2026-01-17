@@ -84,11 +84,12 @@
         When ready, generate an updated <code>books.json</code>, paste it into GitHub, and commit.
       </div>
 
-      <div class="actions">
-        <button id="generate-json" type="button">Generate updated books.json</button>
-        <button id="copy-json" type="button">Copy output</button>
-        <button id="clear-draft" type="button">Clear local Draft</button>
-      </div>
+   <div class="actions">
+  <button id="generate-json" type="button">Generate updated books.json</button>
+  <button id="copy-json" type="button">Copy output</button>
+  <button id="download-json" type="button">Download books.json</button>
+  <button id="clear-draft" type="button">Clear local Draft</button>
+</div>
 
       <textarea id="output" placeholder="Click “Generate updated books.json”…"></textarea>
     </section>
@@ -592,6 +593,31 @@ try {
         }
       });
 
+            document.getElementById("download-json").addEventListener("click", () => {
+        const text = outputEl.value.trim();
+        if (!text) return alert("Nothing to download yet. Click “Generate updated books.json” first.");
+
+        // Basic sanity check: ensure it's valid JSON before downloading
+        try {
+          JSON.parse(text);
+        } catch {
+          return alert("Output is not valid JSON. Re-generate and try again.");
+        }
+
+        const blob = new Blob([text], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "books.json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+
+      
       document.getElementById("clear-draft").addEventListener("click", async () => {
         if (!confirm("Clear local Draft? This only affects this browser.")) return;
         draft = [];
