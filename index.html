@@ -595,6 +595,8 @@ try {
       });
 
             document.getElementById("download-json").addEventListener("click", () => {
+              console.log("[Next Reads] download-json clicked");
+
         const text = outputEl.value.trim();
         if (!text) return alert("Nothing to download yet. Click “Generate updated books.json” first.");
 
