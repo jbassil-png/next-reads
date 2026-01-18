@@ -348,8 +348,8 @@
                 <span id="confirm-date"></span>
               </div>
               <div>
-                <span style="color: #666;">ISBN:</span>
-                <span id="confirm-isbn"></span>
+                <label for="isbn" style="color: #666; display: block; margin-bottom: 4px;">ISBN (editable):</label>
+                <input type="text" id="isbn" style="width: 100%; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
               </div>
             </div>
           </div>
@@ -358,7 +358,6 @@
         <input type="hidden" id="title">
         <input type="hidden" id="author">
         <input type="hidden" id="release_date">
-        <input type="hidden" id="isbn">
         <input type="hidden" id="cover_url">
         <input type="hidden" id="google_books_id">
         <input type="hidden" id="notes">
@@ -665,7 +664,6 @@
       document.getElementById('confirm-title').textContent = info.title || '';
       document.getElementById('confirm-author').textContent = authors;
       document.getElementById('confirm-date').textContent = publishedDate || 'Unknown';
-      document.getElementById('confirm-isbn').textContent = isbn || 'N/A';
 
       // Update cover preview
       const coverPreview = document.getElementById('cover-preview');
