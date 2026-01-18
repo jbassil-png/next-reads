@@ -561,7 +561,7 @@
       autocompleteTimeout = setTimeout(async () => {
         try {
           const searchQuery = encodeURIComponent(query);
-          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${searchQuery}&maxResults=8`);
+          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${searchQuery}&printType=ebooks&maxResults=8`);
           const data = await response.json();
 
           if (!data.items || data.items.length === 0) {
@@ -592,7 +592,7 @@
       autocompleteTimeout = setTimeout(async () => {
         try {
           const searchQuery = encodeURIComponent(query);
-          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=inauthor:${searchQuery}&maxResults=8`);
+          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=inauthor:${searchQuery}&printType=ebooks&maxResults=8`);
           const data = await response.json();
 
           if (!data.items || data.items.length === 0) {
@@ -724,7 +724,7 @@
         const query = encodeURIComponent(`intitle:${title} inauthor:${author}`);
         console.log('Searching Google Books:', query);
 
-        const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=10`);
+        const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&printType=ebooks&maxResults=10`);
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
