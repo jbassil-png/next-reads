@@ -1,0 +1,10 @@
+# Admin configuration (contains service_role key)
+admin-config.js
+
+# Environment files
+.env
+.env.local
+
+# Editor
+.DS_Store
+.vscode/

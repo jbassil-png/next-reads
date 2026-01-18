@@ -1,92 +1,169 @@
 # Next Reads
 
-Next Reads is a browser-based personal dashboard for tracking upcoming book releases.
+A personal dashboard for tracking upcoming book releases with library availability monitoring.
 
-It is intentionally built as a **static, incremental system** with no backend (so far), hosted on **GitHub Pages**, and designed to favor transparency, portability, and manual control over automation.
+**Status:** Active development - migrated to Supabase backend
 
 ---
 
 ## What Next Reads Does
 
-- Track upcoming book releases by **Title + Author**
-- Validate books via the **Google Books API**
-- Normalize release dates with explicit precision handling:
-  - `YYYY` → stored as `YYYY-12-31` (precision: year)
-  - `YYYY-MM` → stored as `YYYY-MM-01` (precision: month)
-  - `YYYY-MM-DD` → stored exactly (precision: day)
-- Display a dashboard split into three always-visible sections:
-  - **Published** (release date in the past)
-  - **Coming Soon** (within the next 30 days)
-  - **Coming Later** (more than 30 days away)
-- Track library availability status (Found / Not found / Unknown)
-- Track reminder state (30d, 14d, 7d, 1d, release day)
-- Allow manual marking of reminder events to avoid duplicates
+Track book releases you're anticipating and monitor their availability at your local library:
+
+### Core Features
+- **Two-table dashboard:**
+  - **"Waiting For"** - Released books not yet available or on hold at the library
+  - **"Coming Soon"** - Unreleased books sorted by release date
+
+- **Library integration** (in progress):
+  - Track availability status (Not Available / Available to Hold / On Hold / Available to Checkout)
+  - Automatic Overdrive checking (planned)
+  - Email alerts when books become available (planned)
+
+- **Public sharing:**
+  - Your dashboard is publicly viewable (read-only)
+  - Admin panel for you to manage books
+  - Open source for others to fork and deploy their own
 
 ---
 
-## Architecture (Current)
+## Architecture
 
-- **Frontend only**: vanilla HTML, CSS, and JavaScript
-- **Hosting**: GitHub Pages
-- **No backend**
-- **No frameworks**
-- **No build step**
+**Current Stack:**
+- **Frontend:** Vanilla HTML/CSS/JavaScript
+- **Backend:** Supabase (PostgreSQL + Edge Functions)
+- **Authentication:** Simple admin-only (no auth required for viewing)
+- **Hosting:** GitHub Pages (frontend) + Supabase (data/functions)
 
-### Source of Truth
-- `books.json` in the repository is the canonical dataset
-- The app loads this file at runtime
+**Database:**
+- `books` table - All tracked releases with library status
+- `status_history` table - Audit log of status changes
+- Row Level Security - Public read, authenticated write
 
-### Draft Model
-- New books and edits are stored temporarily in `localStorage` as a **Draft**
-- Drafts are intentionally ephemeral
-- The user explicitly decides when to commit changes
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed schema and design decisions.
 
 ---
 
-## Saving Changes (Current Workflow)
+## Setup
 
-Because GitHub Pages is static, the app **cannot write to `books.json` directly**.
+### 1. Database Setup
 
-The current workflow is:
+1. Create a Supabase account at [supabase.com](https://supabase.com)
+2. Create a new project
+3. Run the migration from `supabase/migrations/001_initial_schema.sql`:
+   - Go to SQL Editor in Supabase dashboard
+   - Copy/paste the migration SQL
+   - Run it
 
-1. Add or edit books in the app (stored locally as Draft)
-2. Click **Generate updated books.json**
-3. Click **Download books.json**
-4. Upload/replace `books.json` in the GitHub repo
-5. Commit the change
+See [supabase/README.md](supabase/README.md) for detailed instructions.
 
-This preserves:
-- Full user control
-- Version history via Git
-- Zero credentials stored in the browser
+### 2. Configure Frontend
+
+1. Copy `config.example.js` to `config.js`:
+   ```bash
+   cp config.example.js config.js
+   ```
+
+2. Edit `config.js` with your Supabase credentials:
+   ```javascript
+   const SUPABASE_CONFIG = {
+     url: 'https://YOUR-PROJECT.supabase.co',
+     anonKey: 'your-anon-public-key'
+   };
+   ```
+
+3. Open `index.html` in a browser
+
+**Note:** `config.js` is gitignored - never commit your credentials!
+
+### 3. Add Test Data
+
+Open Supabase SQL Editor and run:
+
+```sql
+-- Add a book that's already released
+INSERT INTO books (title, author, release_date, library_status)
+VALUES ('The Name of the Wind', 'Patrick Rothfuss', '2007-03-27', 'not_available');
+
+-- Add an upcoming release
+INSERT INTO books (title, author, release_date, library_status, notes)
+VALUES ('Doors of Stone', 'Patrick Rothfuss', '2026-12-31', 'not_released', 'Highly anticipated!');
+```
+
+Refresh your dashboard to see the books appear.
 
 ---
 
-## Data Model (Stable)
+## Development Roadmap
 
-Each book follows this structure:
+**Phase 1: Core Dashboard** ✅
+- [x] Database schema
+- [x] Two-table public view
+- [ ] Admin panel for adding/editing books
 
-```json
-{
-  "title": "",
-  "author": "",
-  "release_date": "YYYY-MM-DD",
-  "release_date_precision": "year|month|day",
-  "release_date_raw": "",
-  "source": "google_books|manual",
-  "library": {
-    "status": "unknown|not_found|found",
-    "checked_at": null
-  },
-  "notifications": {
-    "on_release": true,
-    "on_library": true
-  },
-  "reminder_flags": {
-    "30d": false,
-    "14d": false,
-    "7d": false,
-    "1d": false,
-    "release_day": false
-  }
-}
+**Phase 2: Overdrive Integration** 🚧
+- [ ] Research SFPL Overdrive API
+- [ ] Edge Function for availability checks
+- [ ] Scheduled daily checks
+
+**Phase 3: Notifications** 📋
+- [ ] Email service integration
+- [ ] Weekly digest email
+- [ ] Availability alerts
+
+**Phase 4: Polish** 📋
+- [ ] Series tracking
+- [ ] Anticipation scores
+- [ ] Mobile-friendly design
+- [ ] Reading history
+
+---
+
+## Project Structure
+
+```
+next-reads/
+├── index.html              # Public dashboard (two-table view)
+├── admin.html              # Admin panel (coming soon)
+├── config.js               # Your Supabase credentials (gitignored)
+├── config.example.js       # Template for config
+├── books.json              # Legacy data (deprecated)
+├── docs/
+│   └── ARCHITECTURE.md     # Detailed design docs
+└── supabase/
+    ├── README.md           # Setup guide
+    └── migrations/
+        └── 001_initial_schema.sql
+```
+
+---
+
+## Why This Architecture?
+
+**Learning First:**
+This is a learning project that solves a real problem. The architecture choices balance:
+- Educational value (learn Supabase, databases, APIs)
+- Practical utility (actually use this tool)
+- Simplicity (no over-engineering)
+
+**Single User, Public Dashboard:**
+- Only you can edit (admin panel)
+- Anyone can view (public read-only dashboard)
+- Others can fork and deploy their own instance
+
+**See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full rationale.**
+
+---
+
+## Contributing
+
+This is a personal project, but if you want to:
+- **Use it yourself:** Fork the repo and follow the setup instructions
+- **Suggest improvements:** Open an issue
+- **Report bugs:** Open an issue with details
+
+---
+
+## License
+
+MIT License - feel free to fork and adapt for your own use.
