@@ -37,7 +37,7 @@ serve(async (req) => {
 
     for (const book of books || []) {
       try {
-        // Search Overdrive by ISBN
+        // Search Overdrive by ISBN (now that we filter to ebooks only, ISBN should match)
         const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${book.isbn}`
         const searchResponse = await fetch(searchUrl)
 
@@ -55,7 +55,7 @@ serve(async (req) => {
           continue
         }
 
-        // Get availability from first result
+        // Use first result (should be exact match by ISBN)
         const overdriveBook = searchData.items[0]
         const isAvailable = overdriveBook.isAvailable === true
         const availableCopies = overdriveBook.availableCopies || 0
