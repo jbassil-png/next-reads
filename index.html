@@ -875,7 +875,27 @@
 
         if (error) throw error;
 
+        const addedBook = data[0];
         showMessage(`✓ Added "${formData.title}" successfully!`, 'success');
+
+        // Check library status if book has ISBN and is released
+        if (addedBook.isbn && formData.library_status !== 'not_released') {
+          showMessage(`Checking library availability...`, 'info');
+          const libraryStatus = await checkSingleBook(addedBook);
+
+          if (libraryStatus) {
+            // Update the book with library status
+            await supabaseAdmin
+              .from('books')
+              .update({
+                library_status: libraryStatus,
+                last_checked_at: new Date().toISOString()
+              })
+              .eq('id', addedBook.id);
+
+            showMessage(`✓ Library status updated: ${formatStatus(libraryStatus)}`, 'success');
+          }
+        }
 
         // Reset form and go back to search
         document.getElementById('add-book-form').reset();
@@ -907,6 +927,82 @@
       } catch (error) {
         console.error('Error deleting book:', error);
         showMessage(`Error: ${error.message}`, 'error');
+      }
+    };
+
+    // Check single book's library status via Overdrive
+    async function checkSingleBook(book) {
+      if (!book.isbn) {
+        return null; // Can't check without ISBN
+      }
+
+      try {
+        const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${book.isbn}`;
+        const searchResponse = await fetch(searchUrl);
+
+        if (!searchResponse.ok) {
+          console.error(`Overdrive search failed for ${book.title}`);
+          return null;
+        }
+
+        const searchData = await searchResponse.json();
+
+        if (!searchData.items || searchData.items.length === 0) {
+          return 'not_available'; // Not in Overdrive catalog
+        }
+
+        // Get availability from first result
+        const overdriveBook = searchData.items[0];
+        const isAvailable = overdriveBook.isAvailable === true;
+        const availableCopies = overdriveBook.availableCopies || 0;
+        const isHoldable = overdriveBook.isHoldable === true;
+
+        // Determine library status
+        if (isAvailable && availableCopies > 0) {
+          return 'available_to_checkout';
+        } else if (isHoldable) {
+          return 'available_to_hold';
+        } else {
+          return 'not_available';
+        }
+      } catch (error) {
+        console.error(`Error checking ${book.title}:`, error);
+        return null;
+      }
+    }
+
+    // Check all books' library status via Edge Function
+    window.checkAllBooks = async function() {
+      const button = event.target;
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Checking...';
+
+      try {
+        const response = await fetch(
+          'https://rmlxegsolfklkfzcmllp.supabase.co/functions/v1/check-overdrive',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
+            }
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to check library status');
+        }
+
+        const result = await response.json();
+        showMessage(`✓ Checked ${result.checked} books for library availability`, 'success');
+        render(); // Refresh to show updated statuses
+      } catch (error) {
+        console.error('Error checking all books:', error);
+        showMessage(`Error: ${error.message}`, 'error');
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
       }
     };
 
@@ -944,7 +1040,13 @@
         // Render dashboard
         app.innerHTML = `
           <div class="section">
-            <h2>Waiting For (${waitingFor.length})</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h2 style="margin: 0;">Waiting For (${waitingFor.length})</h2>
+              <button onclick="checkAllBooks()"
+                      style="padding: 6px 12px; font-size: 13px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Check Library Status
+              </button>
+            </div>
             <div class="section-description">
               Released books not yet available or on hold at the library
             </div>
