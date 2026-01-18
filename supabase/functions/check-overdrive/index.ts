@@ -24,6 +24,7 @@ serve(async (req) => {
       .from('books')
       .select('*')
       .lte('release_date', today)
+      .not('isbn', 'is', null)
       .in('library_status', ['not_available', 'available_to_hold', 'on_hold'])
 
     if (fetchError) {
@@ -36,9 +37,8 @@ serve(async (req) => {
 
     for (const book of books || []) {
       try {
-        // Search Overdrive by title (more reliable than ISBN)
-        const query = encodeURIComponent(book.title)
-        const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${query}`
+        // Search Overdrive by ISBN (now that we filter to ebooks only, ISBN should match)
+        const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${book.isbn}`
         const searchResponse = await fetch(searchUrl)
 
         if (!searchResponse.ok) {
@@ -55,14 +55,8 @@ serve(async (req) => {
           continue
         }
 
-        // Find best match (exact title match, or first result)
-        let overdriveBook = searchData.items[0]
-        const exactMatch = searchData.items.find((item: any) =>
-          item.title.toLowerCase() === book.title.toLowerCase()
-        )
-        if (exactMatch) {
-          overdriveBook = exactMatch
-        }
+        // Use first result (should be exact match by ISBN)
+        const overdriveBook = searchData.items[0]
         const isAvailable = overdriveBook.isAvailable === true
         const availableCopies = overdriveBook.availableCopies || 0
         const isHoldable = overdriveBook.isHoldable === true
