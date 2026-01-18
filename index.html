@@ -467,7 +467,7 @@
                   </td>
                   <td class="days-label">${lastChecked}</td>
                   <td>
-                    <button onclick="deleteBook(${book.id}, '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
+                    <button onclick="deleteBook('${book.id}', '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
                             style="background: none; border: none; color: #999; cursor: pointer; font-size: 18px; padding: 4px 8px;"
                             title="Remove book">×</button>
                   </td>
@@ -512,7 +512,7 @@
                   <td class="days-label">${daysLabel}</td>
                   <td class="days-label">${book.notes ? escapeHtml(book.notes) : '—'}</td>
                   <td>
-                    <button onclick="deleteBook(${book.id}, '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
+                    <button onclick="deleteBook('${book.id}', '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
                             style="background: none; border: none; color: #999; cursor: pointer; font-size: 18px; padding: 4px 8px;"
                             title="Remove book">×</button>
                   </td>
