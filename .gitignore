@@ -1,7 +1,7 @@
-# Environment configuration
-config.js
+# Admin configuration (contains service_role key)
+admin-config.js
 
-# Supabase
+# Environment files
 .env
 .env.local
 
