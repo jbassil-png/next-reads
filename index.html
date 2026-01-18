@@ -326,7 +326,7 @@
 
     <!-- Step 2: Confirm and Add -->
     <div id="step-confirm" class="form-step">
-      <div class="step-indicator">Step 2 of 2: Confirm details</div>
+      <div class="step-indicator">Confirm and add to your list</div>
 
       <form id="add-book-form">
         <div style="display: grid; grid-template-columns: 100px 1fr; gap: 20px; margin-bottom: 20px;">
@@ -352,17 +352,6 @@
                 <span id="confirm-isbn"></span>
               </div>
             </div>
-
-            <div class="form-group" style="margin-top: 8px;">
-              <label for="library_status">Library Status *</label>
-              <select id="library_status" required>
-                <option value="not_released">Not Released</option>
-                <option value="not_available">Not Available</option>
-                <option value="available_to_hold">Available to Hold</option>
-                <option value="on_hold">On Hold</option>
-                <option value="available_to_checkout">Available to Checkout</option>
-              </select>
-            </div>
           </div>
         </div>
 
@@ -373,8 +362,9 @@
         <input type="hidden" id="cover_url">
         <input type="hidden" id="google_books_id">
         <input type="hidden" id="notes">
+        <input type="hidden" id="library_status">
 
-        <button type="submit" class="primary">Add Book</button>
+        <button type="submit" class="primary">Add to List</button>
         <button type="button" id="back-btn" class="secondary">← Back to Search</button>
       </form>
     </div>
