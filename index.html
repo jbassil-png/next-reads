@@ -930,12 +930,10 @@
 
     // Check single book's library status via Overdrive
     async function checkSingleBook(book) {
-      if (!book.isbn) {
-        return null; // Can't check without ISBN
-      }
-
       try {
-        const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${book.isbn}`;
+        // Search by title (more reliable than ISBN since Google Books often returns print ISBN)
+        const query = encodeURIComponent(book.title);
+        const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${query}`;
         const searchResponse = await fetch(searchUrl);
 
         if (!searchResponse.ok) {
@@ -949,8 +947,15 @@
           return 'not_available'; // Not in Overdrive catalog
         }
 
-        // Get availability from first result
-        const overdriveBook = searchData.items[0];
+        // Find best match (exact title match, or first result)
+        let overdriveBook = searchData.items[0];
+        const exactMatch = searchData.items.find(item =>
+          item.title.toLowerCase() === book.title.toLowerCase()
+        );
+        if (exactMatch) {
+          overdriveBook = exactMatch;
+        }
+
         const isAvailable = overdriveBook.isAvailable === true;
         const availableCopies = overdriveBook.availableCopies || 0;
         const isHoldable = overdriveBook.isHoldable === true;
