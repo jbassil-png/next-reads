@@ -1,7 +1,5 @@
 // Supabase Configuration
-// Replace these with your actual Supabase project credentials
-
 const SUPABASE_CONFIG = {
-  url: 'https://YOUR-PROJECT.supabase.co',
-  anonKey: 'your-anon-public-key-here'
+  url: 'https://rmlxegsolfklkfzcmllp.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtbHhlZ3NvbGZrbGtmemNtbGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2ODE2MDQsImV4cCI6MjA4NDI1NzYwNH0.0fJBhxwAS4xlyCHTy_BbZB4D_SpBazwaITI4sTRrM1A'
 };
