@@ -394,26 +394,24 @@
 
   <!-- Configuration -->
   <script src="config.js"></script>
-  <script>
-    // Try to load admin config if available (won't exist on GitHub Pages)
-    let ADMIN_CONFIG = null;
-    const adminScript = document.createElement('script');
-    adminScript.src = 'admin-config.js';
-    adminScript.onerror = () => {
-      console.log('Admin config not loaded - add book form will be disabled');
-    };
-    document.head.appendChild(adminScript);
-  </script>
 
   <script>
     // Initialize Supabase clients
     const { createClient } = supabase;
     const supabaseClient = createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
 
-    // Admin client only available if admin-config.js is loaded
+    // Admin password (simple security through obscurity)
+    const ADMIN_PASSWORD = 'my-secret-password-123';  // TODO: Change this to your password
+
+    // Admin service role key (only used after password verification)
+    const ADMIN_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtbHhlZ3NvbGZrbGtmemNtbGxwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODY4MTYwNCwiZXhwIjoyMDg0MjU3NjA0fQ.1Yf5Bj7u8zRhi0asY3_JR6xVFaOU7Df6esh1N6U3Xvo';
+
+    // Admin client (created after password verification)
     let supabaseAdmin = null;
-    if (typeof ADMIN_CONFIG !== 'undefined' && ADMIN_CONFIG !== null) {
-      supabaseAdmin = createClient(ADMIN_CONFIG.url, ADMIN_CONFIG.serviceRoleKey);
+
+    // Check if already authenticated in this session
+    if (sessionStorage.getItem('adminAuthenticated') === 'true') {
+      supabaseAdmin = createClient(SUPABASE_CONFIG.url, ADMIN_SERVICE_KEY);
     }
 
     // Helper: Format date
@@ -616,6 +614,32 @@
       }
     });
 
+    // Password authentication
+    function promptForPassword() {
+      const password = prompt('Enter admin password to add books:');
+      if (password === ADMIN_PASSWORD) {
+        sessionStorage.setItem('adminAuthenticated', 'true');
+        supabaseAdmin = createClient(SUPABASE_CONFIG.url, ADMIN_SERVICE_KEY);
+        showMessage('✓ Authenticated! You can now add books.', 'success');
+        return true;
+      } else if (password !== null) {
+        showMessage('Incorrect password', 'error');
+      }
+      return false;
+    }
+
+    // Check authentication before allowing form interaction
+    function checkAuthBeforeInput(e) {
+      if (!supabaseAdmin) {
+        e.preventDefault();
+        e.target.blur();
+        if (promptForPassword()) {
+          // Re-focus on the field after successful auth
+          setTimeout(() => e.target.focus(), 100);
+        }
+      }
+    }
+
     // Search Google Books
     async function searchGoogleBooks() {
       const title = document.getElementById('search-title').value.trim();
@@ -762,9 +786,10 @@
     async function handleAddBook(e) {
       e.preventDefault();
 
-      // Check if admin access is available
+      // Check if authenticated
       if (!supabaseAdmin) {
-        showMessage('Admin access not available. Please use the admin panel locally.', 'error');
+        showMessage('Please authenticate first', 'error');
+        promptForPassword();
         return;
       }
 
@@ -862,29 +887,37 @@
 
     // Load on page load
     document.addEventListener('DOMContentLoaded', () => {
-      // Hide add book section if admin access is not available
-      setTimeout(() => {
+      // Add password protection to form fields
+      const formInputs = [
+        document.getElementById('search-title'),
+        document.getElementById('search-author')
+      ];
+
+      formInputs.forEach(input => {
+        input.addEventListener('focus', checkAuthBeforeInput);
+        input.addEventListener('click', checkAuthBeforeInput);
+      });
+
+      // Protect search button
+      const searchBtn = document.getElementById('search-btn');
+      const originalSearchHandler = () => {
         if (!supabaseAdmin) {
-          const addBookSection = document.querySelector('.add-book-section');
-          if (addBookSection) {
-            addBookSection.style.display = 'none';
-          }
-          // Also hide the divider
-          const divider = document.querySelector('[style*="border-top: 2px solid"]');
-          if (divider) {
-            divider.style.display = 'none';
-          }
+          promptForPassword();
+        } else {
+          searchGoogleBooks();
         }
-      }, 100); // Small delay to ensure admin config has loaded if available
+      };
 
       // Attach event handlers
-      document.getElementById('search-btn').addEventListener('click', searchGoogleBooks);
+      searchBtn.addEventListener('click', originalSearchHandler);
       document.getElementById('add-book-form').addEventListener('submit', handleAddBook);
       document.getElementById('back-btn').addEventListener('click', goBackToSearch);
 
-      // Autocomplete on title input
+      // Autocomplete on title input (only when authenticated)
       document.getElementById('search-title').addEventListener('input', (e) => {
-        handleTitleAutocomplete(e.target.value);
+        if (supabaseAdmin) {
+          handleTitleAutocomplete(e.target.value);
+        }
       });
 
       // Allow Enter key on search inputs
@@ -892,13 +925,21 @@
         if (e.key === 'Enter') {
           e.preventDefault();
           document.getElementById('title-autocomplete').style.display = 'none';
-          searchGoogleBooks();
+          if (supabaseAdmin) {
+            searchGoogleBooks();
+          } else {
+            promptForPassword();
+          }
         }
       });
       document.getElementById('search-author').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          searchGoogleBooks();
+          if (supabaseAdmin) {
+            searchGoogleBooks();
+          } else {
+            promptForPassword();
+          }
         }
       });
 
