@@ -387,19 +387,11 @@
     const { createClient } = supabase;
     const supabaseClient = createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
 
-    // Admin password (simple security through obscurity)
-    const ADMIN_PASSWORD = 'my-secret-password-123';  // TODO: Change this to your password
-
-    // Admin service role key (only used after password verification)
+    // Admin service role key (TODO: Add password protection before making this public)
     const ADMIN_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtbHhlZ3NvbGZrbGtmemNtbGxwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODY4MTYwNCwiZXhwIjoyMDg0MjU3NjA0fQ.1Yf5Bj7u8zRhi0asY3_JR6xVFaOU7Df6esh1N6U3Xvo';
 
-    // Admin client (created after password verification)
-    let supabaseAdmin = null;
-
-    // Check if already authenticated in this session
-    if (sessionStorage.getItem('adminAuthenticated') === 'true') {
-      supabaseAdmin = createClient(SUPABASE_CONFIG.url, ADMIN_SERVICE_KEY);
-    }
+    // Admin client for adding/editing books
+    const supabaseAdmin = createClient(SUPABASE_CONFIG.url, ADMIN_SERVICE_KEY);
 
     // Helper: Format date
     function formatDate(dateString) {
@@ -699,20 +691,6 @@
       }
     });
 
-    // Password authentication
-    function promptForPassword() {
-      const password = prompt('Enter admin password to add this book to the list:');
-      if (password === ADMIN_PASSWORD) {
-        sessionStorage.setItem('adminAuthenticated', 'true');
-        supabaseAdmin = createClient(SUPABASE_CONFIG.url, ADMIN_SERVICE_KEY);
-        showMessage('✓ Authenticated! Adding book...', 'success');
-        return true;
-      } else if (password !== null) {
-        showMessage('Incorrect password. Book not added.', 'error');
-      }
-      return false;
-    }
-
     // Search Google Books
     async function searchGoogleBooks() {
       const title = document.getElementById('search-title').value.trim();
@@ -865,13 +843,6 @@
     // Add book form handler
     async function handleAddBook(e) {
       e.preventDefault();
-
-      // Check if authenticated, prompt if not
-      if (!supabaseAdmin) {
-        if (!promptForPassword()) {
-          return; // User cancelled or wrong password
-        }
-      }
 
       const formData = {
         title: document.getElementById('title').value.trim(),
