@@ -6,629 +6,328 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; max-width: 1050px; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      margin: 24px;
+      max-width: 1200px;
+      margin-left: auto;
+      margin-right: auto;
+    }
     h1 { margin: 0 0 6px; }
     p { margin: 0 0 18px; color: #444; }
-    .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; }
-    .card h2 { margin: 0 0 10px; font-size: 16px; }
-    .row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
-    label { display: grid; gap: 6px; font-size: 13px; color: #333; }
-    input { padding: 9px 10px; border-radius: 10px; border: 1px solid #ccc; }
-    button { padding: 9px 12px; border-radius: 10px; border: 1px solid #ccc; background: #f7f7f7; cursor: pointer; }
-    button.primary { background: #111; color: #fff; border-color: #111; }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
-    .muted { color: #666; font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border-bottom: 1px solid #eee; text-align: left; padding: 8px 6px; font-size: 14px; vertical-align: top; }
-    th { color: #555; font-weight: 600; }
-    .results { display: grid; gap: 10px; }
-    .result { border: 1px solid #eee; border-radius: 10px; padding: 10px; display: grid; gap: 6px; }
-    .result-title { font-weight: 650; }
-    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-    textarea { width: 100%; min-height: 180px; padding: 10px; border-radius: 10px; border: 1px solid #ccc;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
-    hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
-    a { color: #444; }
+    .header { margin-bottom: 32px; }
+    .section { margin-bottom: 40px; }
+    .section h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      color: #222;
+    }
+    .section-description {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    thead {
+      background: #f8f8f8;
+    }
+    th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    td {
+      padding: 12px 16px;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+    tbody tr:hover {
+      background: #fafafa;
+    }
+    .empty-state {
+      padding: 48px 24px;
+      text-align: center;
+      color: #999;
+      font-size: 14px;
+      background: #fafafa;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .status-not_released { background: #e3f2fd; color: #1565c0; }
+    .status-not_available { background: #fff3e0; color: #e65100; }
+    .status-available_to_hold { background: #e8f5e9; color: #2e7d32; }
+    .status-on_hold { background: #f3e5f5; color: #6a1b9a; }
+    .status-available_to_checkout { background: #c8e6c9; color: #1b5e20; }
+    .days-label {
+      color: #666;
+      font-size: 13px;
+    }
+    .loading {
+      text-align: center;
+      padding: 48px;
+      color: #999;
+    }
+    .error {
+      padding: 16px;
+      background: #ffebee;
+      color: #c62828;
+      border-radius: 8px;
+      margin-bottom: 24px;
+    }
+    .admin-link {
+      margin-top: 24px;
+      padding: 12px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .admin-link a {
+      color: #1976d2;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .admin-link a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
 
-  <h1>Next Reads</h1>
-  <p>A personal dashboard for upcoming book releases. Add by title+author → validate → add.</p>
-
-  <div class="grid">
-    <section class="card">
-      <h2>Add a book</h2>
-
-      <!-- NOTE: We intentionally do NOT submit this form. Validate is a plain button. -->
-      <form id="validate-form" class="row" autocomplete="off">
-        <label>
-          Title
-          <input id="title" type="text" required>
-        </label>
-
-        <label>
-          Author
-          <input id="author" type="text" required>
-        </label>
-
-        <button id="validate-btn" type="button" class="primary">Validate</button>
-      </form>
-
-      <div id="selected" class="muted" style="margin-top:10px;"></div>
-
-      <div class="actions">
-        <button id="add-btn" type="button" class="primary" disabled>Add to list</button>
-        <button id="clear-selection" type="button">Clear selection</button>
-      </div>
-
-      <hr>
-
-      <div class="muted">
-        Validation uses Google Books. If only a year/month is available, we store a sortable date and a precision flag.
-      </div>
-
-      <div id="results" class="results" style="margin-top:12px;"></div>
-    </section>
-
-    <section class="card">
-      <h2>Dashboard</h2>
-      <div id="app" class="muted">Loading…</div>
-    </section>
-
-    <section class="card">
-      <h2>Save changes to GitHub</h2>
-      <div class="muted">
-        This app can’t directly edit <code>books.json</code> yet, so new books are saved in your browser as a “Draft”.
-        When ready, generate an updated <code>books.json</code>, paste it into GitHub, and commit.
-      </div>
-
-   <div class="actions">
-  <button id="generate-json" type="button">Generate updated books.json</button>
-  <button id="copy-json" type="button">Copy output</button>
-  <button id="download-json" type="button">Download books.json</button>
-  <button id="clear-draft" type="button">Clear local Draft</button>
-</div>
-
-      <textarea id="output" placeholder="Click “Generate updated books.json”…"></textarea>
-    </section>
+  <div class="header">
+    <h1>Next Reads</h1>
+    <p>Track upcoming book releases and library availability</p>
   </div>
 
+  <div id="error-container"></div>
+  <div id="app"></div>
+
+  <div class="admin-link">
+    <a href="admin.html">Admin Panel →</a>
+  </div>
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Configuration -->
+  <script src="config.js"></script>
+
   <script>
-    console.log("[Next Reads] script loaded v-download-1", new Date().toISOString());
+    // Initialize Supabase client
+    const { createClient } = supabase;
+    const supabaseClient = createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
 
-    
-    const DRAFT_KEY = "next_reads_draft_v1";
-
-    function loadDraft() {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return [];
-      try { return JSON.parse(raw); } catch { return []; }
+    // Helper: Format date
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
     }
 
-    function saveDraft(draft) {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    // Helper: Calculate days until/since release
+    function getDaysUntil(releaseDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const release = new Date(releaseDate);
+      release.setHours(0, 0, 0, 0);
+      const diffTime = release - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
     }
 
-    async function loadBooksJson() {
-      const response = await fetch("books.json", { cache: "no-store" });
-      return await response.json();
+    // Helper: Format status for display
+    function formatStatus(status) {
+      const statusMap = {
+        'not_released': 'Not Released',
+        'not_available': 'Not Available',
+        'available_to_hold': 'Available to Hold',
+        'on_hold': 'On Hold',
+        'available_to_checkout': 'Available to Checkout',
+        'checked_out': 'Checked Out'
+      };
+      return statusMap[status] || status;
     }
 
-    // Date precision handling (agreed defaults):
-    // YYYY       -> YYYY-12-31, precision "year"
-    // YYYY-MM    -> YYYY-MM-01, precision "month"
-    // YYYY-MM-DD -> exact, precision "day"
-    function normalizePublishedDate(publishedDate) {
-      if (!publishedDate || typeof publishedDate !== "string") return null;
-
-      if (/^\d{4}$/.test(publishedDate)) {
-        return { release_date: `${publishedDate}-12-31`, precision: "year", raw: publishedDate };
+    // Render "Waiting For" table
+    function renderWaitingFor(books) {
+      if (books.length === 0) {
+        return '<div class="empty-state">No books waiting for library availability</div>';
       }
-      if (/^\d{4}-\d{2}$/.test(publishedDate)) {
-        return { release_date: `${publishedDate}-01`, precision: "month", raw: publishedDate };
-      }
-      if (/^\d{4}-\d{2}-\d{2}$/.test(publishedDate)) {
-        return { release_date: publishedDate, precision: "day", raw: publishedDate };
-      }
-      return null;
-    }
-
-    function parseISODate(dateStr) {
-      const [y, m, d] = dateStr.split("-").map(Number);
-      return new Date(Date.UTC(y, m - 1, d));
-    }
-
-    function daysBetweenUTC(a, b) {
-      const msPerDay = 24 * 60 * 60 * 1000;
-      const aUTC = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
-      const bUTC = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
-      return Math.round((bUTC - aUTC) / msPerDay);
-    }
-
-    // --- Reminder logic (4.3) ---
-const REMINDER_SCHEDULE = [
-  { key: "30d", days: 30 },
-  { key: "14d", days: 14 },
-  { key: "7d",  days: 7 },
-  { key: "1d",  days: 1 },
-  { key: "release_day", days: 0 }
-];
-
-function getDaysUntilRelease(book, today) {
-  if (!book || !book.release_date) return null;
-  const release = parseISODate(book.release_date);
-  return daysBetweenUTC(today, release); // positive = future
-}
-
-function getReminderDueTodayKey(book, today) {
-  // Returns a key like "14d" if a reminder is due today and not yet sent, else null.
-  if (!book?.notifications?.on_release) return null;
-  if (!book.reminder_flags) return null;
-
-  const delta = getDaysUntilRelease(book, today);
-  if (delta === null) return null;
-  if (delta < 0) return null; // past release
-
-  for (const r of REMINDER_SCHEDULE) {
-    if (delta === r.days && book.reminder_flags[r.key] === false) {
-      return r.key;
-    }
-  }
-  return null;
-}
-
-function getNextReminder(book, today) {
-  // Returns { key, days, inDays } for the next unsent reminder in the future, else null.
-  if (!book?.notifications?.on_release) return null;
-  if (!book.reminder_flags) return null;
-
-  const delta = getDaysUntilRelease(book, today);
-  if (delta === null) return null;
-  if (delta < 0) return null;
-
-  // Example: delta=45 -> next reminder is 30d (in 15 days)
-  const candidates = REMINDER_SCHEDULE
-    .filter(r => r.days <= delta && book.reminder_flags[r.key] === false)
-    .sort((a, b) => b.days - a.days);
-
-  if (!candidates.length) return null;
-
-  const next = candidates[0];
-  return { ...next, inDays: delta - next.days };
-}
-
-
-    function pickIsbn13(industryIdentifiers) {
-      if (!Array.isArray(industryIdentifiers)) return null;
-      const isbn13 = industryIdentifiers.find(x => x && x.type === "ISBN_13" && x.identifier);
-      return isbn13 ? isbn13.identifier : null;
-    }
-
-    function escapeHtml(s) {
-      return String(s)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-function renderDashboard(books) {
-  const app = document.getElementById("app");
-  const today = new Date();
-  const SOON_DAYS = 30;
-
-  const published = [];
-  const comingSoon = [];
-  const comingLater = [];
-
-  for (const b of books) {
-    if (!b || !b.release_date) continue;
-
-    const delta = getDaysUntilRelease(b, today);
-    if (delta === null) continue;
-
-    if (delta < 0) published.push(b);
-    else if (delta <= SOON_DAYS) comingSoon.push(b);
-    else comingLater.push(b);
-  }
-
-  // Sorting
-  published.sort((a, b) => b.release_date.localeCompare(a.release_date));     // most recent first
-  comingSoon.sort((a, b) => a.release_date.localeCompare(b.release_date));   // soonest first
-  comingLater.sort((a, b) => a.release_date.localeCompare(b.release_date));  // soonest first
-
-  function libraryLabel(b) {
-    if (!b.library || b.library.status === "unknown") return "Unknown";
-    if (b.library.status === "not_found") return "Not found";
-    if (b.library.status === "found") return "Found";
-    return "Unknown";
-  }
-
-  function reminderLabel(b) {
-    const dueKey = getReminderDueTodayKey(b, today);
-    if (dueKey) return { text: `Due today: ${dueKey}`, dueKey };
-
-    const next = getNextReminder(b, today);
-    if (!next) return { text: "—", dueKey: null };
-
-    if (next.inDays === 0) return { text: `Due today: ${next.key}`, dueKey: next.key };
-    return { text: `Next: ${next.key} (in ${next.inDays}d)`, dueKey: null };
-  }
-
-  function sectionHtml(title, subtitle, rows, mode) {
-    // mode: "published" | "soon" | "later" (just for the Days label)
-    const subtitleHtml = subtitle
-      ? `<div class="muted" style="margin:-2px 0 10px;">${subtitle}</div>`
-      : "";
-
-    if (!rows.length) {
-      return `
-        <div style="margin-top:10px;">
-          <h3 style="margin:10px 0 4px; font-size:14px;">${title} (0)</h3>
-          ${subtitleHtml}
-          <div class="muted">None.</div>
-        </div>`;
-    }
-
-    const rowsHtml = rows.map((book, idx) => {
-      const delta = getDaysUntilRelease(book, today);
-      const daysLabel =
-        mode === "published" ? `+${Math.abs(delta)}d` : `in ${delta}d`;
-
-      const precision = book.release_date_precision ? ` (${escapeHtml(book.release_date_precision)})` : "";
-      const lib = libraryLabel(book);
-
-      const canEdit = book.source === "google_books"; // Draft-only edits
-      const r = reminderLabel(book);
 
       return `
-        <tr data-idx="${idx}">
-          <td>${escapeHtml(book.title || "")}</td>
-          <td>${escapeHtml(book.author || "")}</td>
-          <td>${escapeHtml(book.release_date)}${precision}</td>
-          <td>${daysLabel}</td>
-          <td>${lib}</td>
-          <td>${escapeHtml(r.text)}</td>
-          <td>
-            ${canEdit ? `
-              <button data-action="found">Found</button>
-              <button data-action="not_found">Not found</button>
-              ${r.dueKey ? `<button data-action="mark_sent" data-reminder="${escapeHtml(r.dueKey)}">Mark sent</button>` : ``}
-            ` : `<span class="muted">—</span>`}
-          </td>
-        </tr>`;
-    }).join("");
-
-    return `
-      <div style="margin-top:10px;">
-        <h3 style="margin:10px 0 4px; font-size:14px;">${title} (${rows.length})</h3>
-        ${subtitleHtml}
         <table>
           <thead>
             <tr>
               <th>Title</th>
               <th>Author</th>
-              <th>Release</th>
-              <th>Days</th>
-              <th>Library</th>
-              <th>Reminders</th>
-              <th>Actions</th>
+              <th>Released</th>
+              <th>Library Status</th>
+              <th>Last Checked</th>
             </tr>
           </thead>
-          <tbody>${rowsHtml}</tbody>
+          <tbody>
+            ${books.map(book => {
+              const daysAgo = Math.abs(getDaysUntil(book.release_date));
+              const lastChecked = book.last_checked_at
+                ? formatDate(book.last_checked_at)
+                : 'Never';
+
+              return `
+                <tr>
+                  <td><strong>${escapeHtml(book.title)}</strong></td>
+                  <td>${escapeHtml(book.author)}</td>
+                  <td>
+                    ${formatDate(book.release_date)}
+                    <div class="days-label">${daysAgo} days ago</div>
+                  </td>
+                  <td>
+                    <span class="status-badge status-${book.library_status}">
+                      ${formatStatus(book.library_status)}
+                    </span>
+                  </td>
+                  <td class="days-label">${lastChecked}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
         </table>
-      </div>`;
-  }
-
-  // Always render all three sections (even if empty)
-  app.innerHTML =
-    sectionHtml(
-      "Published",
-      "Already released. Track library availability / holds here.",
-      published,
-      "published"
-    ) +
-    sectionHtml(
-      "Coming Soon",
-      `Publishing within the next ${SOON_DAYS} days.`,
-      comingSoon,
-      "soon"
-    ) +
-    sectionHtml(
-      "Coming Later",
-      `Publishing more than ${SOON_DAYS} days from now.`,
-      comingLater,
-      "later"
-    );
-
-  // Wire up buttons (Draft books only)
-  app.querySelectorAll("button[data-action]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const tr = btn.closest("tr");
-      const idx = Number(tr.dataset.idx);
-      const action = btn.dataset.action;
-
-      // IMPORTANT: idx is per-section, but we rendered each section independently.
-      // To keep this simple and reliable, we’ll recompute a single flat list mapping:
-      // We'll locate the matching book row by its title+author+release_date from DOM.
-      const tds = tr.querySelectorAll("td");
-      const rowTitle = tds[0]?.textContent || "";
-      const rowAuthor = tds[1]?.textContent || "";
-      const rowRelease = tds[2]?.textContent?.slice(0, 10) || ""; // "YYYY-MM-DD" portion
-
-      const book = books.find(b =>
-        (b.title || "") === rowTitle &&
-        (b.author || "") === rowAuthor &&
-        (b.release_date || "") === rowRelease
-      );
-      if (!book) return;
-
-      if (action === "found" || action === "not_found") {
-        if (!book.library) book.library = { status: "unknown", checked_at: null };
-        book.library.status = action === "found" ? "found" : "not_found";
-        book.library.checked_at = new Date().toISOString();
-      }
-
-      if (action === "mark_sent") {
-        const key = btn.dataset.reminder;
-        if (book.reminder_flags && key && Object.prototype.hasOwnProperty.call(book.reminder_flags, key)) {
-          book.reminder_flags[key] = true;
-        }
-      }
-
-      const draft = loadDraft();
-      const updatedDraft = draft.map(d =>
-        d.title === book.title && d.author === book.author ? book : d
-      );
-
-      saveDraft(updatedDraft);
-      renderDashboard(books);
-    });
-  });
-}
-
-    async function searchGoogleBooks(title, author) {
-      const q = `intitle:${title} inauthor:${author}`;
-      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=5`;
-      const resp = await fetch(url);
-
-      // Helpful error detail (shown in console)
-      if (!resp.ok) {
-        const txt = await resp.text().catch(() => "");
-        throw new Error(`Google Books request failed: ${resp.status} ${resp.statusText} ${txt}`);
-      }
-
-      return await resp.json();
+      `;
     }
 
-    async function copyToClipboard(text) {
-      await navigator.clipboard.writeText(text);
-    }
-
-    (async function init() {
-      let draft = loadDraft();
-      let selectedBook = null;
-
-      const resultsEl = document.getElementById("results");
-      const selectedEl = document.getElementById("selected");
-      const addBtn = document.getElementById("add-btn");
-      const outputEl = document.getElementById("output");
-
-   async function refreshDashboard() {
-  try {
-    const current = await loadBooksJson();
-    const repoBooks = Array.isArray(current.books) ? current.books : [];
-    const merged = [...draft, ...repoBooks];
-    renderDashboard(merged);
-  } catch (err) {
-    console.error(err);
-    document.getElementById("app").textContent = `Error loading dashboard: ${err?.message || err}`;
-    throw err;
-  }
-}
-
-
-      function clearSelection() {
-        selectedBook = null;
-        selectedEl.textContent = "";
-        addBtn.disabled = true;
+    // Render "Coming Soon" table
+    function renderComingSoon(books) {
+      if (books.length === 0) {
+        return '<div class="empty-state">No upcoming releases</div>';
       }
 
-      function renderResults(items) {
-        resultsEl.innerHTML = "";
+      return `
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Release Date</th>
+              <th>Days Until Release</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${books.map(book => {
+              const daysUntil = getDaysUntil(book.release_date);
+              const daysLabel = daysUntil === 0 ? 'Today!' :
+                                daysUntil === 1 ? 'Tomorrow' :
+                                `in ${daysUntil} days`;
 
-        if (!items.length) {
-          resultsEl.innerHTML = `<div class="muted">No matches found. Try adjusting title/author.</div>`;
-          return;
-        }
+              return `
+                <tr>
+                  <td><strong>${escapeHtml(book.title)}</strong></td>
+                  <td>${escapeHtml(book.author)}</td>
+                  <td>${formatDate(book.release_date)}</td>
+                  <td class="days-label">${daysLabel}</td>
+                  <td class="days-label">${book.notes ? escapeHtml(book.notes) : '—'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+    }
 
-        for (const item of items) {
-          const info = item.volumeInfo || {};
-          const title = info.title || "(no title)";
-          const authors = Array.isArray(info.authors) ? info.authors.join(", ") : "(no authors)";
-          const publishedDate = info.publishedDate || "(no date)";
-          const norm = normalizePublishedDate(info.publishedDate);
-          const isbn13 = pickIsbn13(info.industryIdentifiers);
-          const link = info.infoLink || "";
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
 
-          const card = document.createElement("div");
-          card.className = "result";
-          card.innerHTML = `
-            <div class="result-title">${escapeHtml(title)}</div>
-            <div class="muted">${escapeHtml(authors)}</div>
-            <div class="muted">Published: ${escapeHtml(publishedDate)}${norm ? ` → Using: ${escapeHtml(norm.release_date)} (${escapeHtml(norm.precision)})` : ""}</div>
-            <div class="muted">${isbn13 ? `ISBN-13: ${escapeHtml(isbn13)}` : ""}</div>
-            <div class="actions">
-              <button type="button" data-use="1" ${norm ? "" : "disabled"}>Use</button>
-              ${link ? `<a class="muted" href="${escapeHtml(link)}" target="_blank" rel="noreferrer">View</a>` : ""}
+    // Show error message
+    function showError(message) {
+      const errorContainer = document.getElementById('error-container');
+      errorContainer.innerHTML = `<div class="error">${escapeHtml(message)}</div>`;
+    }
+
+    // Main render function
+    async function render() {
+      const app = document.getElementById('app');
+      app.innerHTML = '<div class="loading">Loading books...</div>';
+
+      try {
+        // Fetch all books (excluding checked_out)
+        const { data: books, error } = await supabaseClient
+          .from('books')
+          .select('*')
+          .neq('library_status', 'checked_out')
+          .order('release_date', { ascending: true });
+
+        if (error) throw error;
+
+        // Split into waiting and coming soon
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const waitingFor = books.filter(book => {
+          const releaseDate = new Date(book.release_date);
+          releaseDate.setHours(0, 0, 0, 0);
+          return releaseDate <= today;
+        }).sort((a, b) => b.release_date.localeCompare(a.release_date)); // Most recent first
+
+        const comingSoon = books.filter(book => {
+          const releaseDate = new Date(book.release_date);
+          releaseDate.setHours(0, 0, 0, 0);
+          return releaseDate > today;
+        }).sort((a, b) => a.release_date.localeCompare(b.release_date)); // Soonest first
+
+        // Render dashboard
+        app.innerHTML = `
+          <div class="section">
+            <h2>Waiting For (${waitingFor.length})</h2>
+            <div class="section-description">
+              Released books not yet available or on hold at the library
             </div>
-          `;
+            ${renderWaitingFor(waitingFor)}
+          </div>
 
-          const useBtn = card.querySelector('button[data-use="1"]');
-          if (useBtn) {
-            useBtn.addEventListener("click", () => {
-              if (!norm) return;
+          <div class="section">
+            <h2>Coming Soon (${comingSoon.length})</h2>
+            <div class="section-description">
+              Books not yet released, sorted by release date
+            </div>
+            ${renderComingSoon(comingSoon)}
+          </div>
+        `;
 
-selectedBook = {
-  title,
-  author: (authors.split(",")[0] || authors).trim(),
-  release_date: norm.release_date,
-  release_date_precision: norm.precision,
-  release_date_raw: norm.raw,
-  status: "upcoming",
-  source: "google_books",
-
-  library: {
-    status: "unknown",       // unknown | not_found | found
-    checked_at: null
-  },
-
-  notifications: {
-    on_release: true,
-    on_library: true
-  },
-
-  reminder_flags: {
-    "30d": false,
-    "14d": false,
-    "7d": false,
-    "1d": false,
-    "release_day": false
-  },
-
-  ...(isbn13 ? { isbn: isbn13 } : {}),
-  ...(link ? { link } : {})
-};
-
-
-              selectedEl.textContent =
-                `Selected: ${selectedBook.title} — ${selectedBook.author} — ${selectedBook.release_date} (${selectedBook.release_date_precision})`;
-
-              addBtn.disabled = false;
-            });
-          }
-
-          resultsEl.appendChild(card);
-        }
+      } catch (error) {
+        console.error('Error loading books:', error);
+        showError(`Failed to load books: ${error.message}`);
+        app.innerHTML = '';
       }
+    }
 
-      // Initial dashboard render
-try {
-  await refreshDashboard();
-} catch (err) {
-  console.error(err);
-  document.getElementById("app").textContent = `Error loading dashboard: ${err?.message || err}`;
-}
-
-
-      // Validate button click (no form submit)
-      document.getElementById("validate-btn").addEventListener("click", async () => {
-        clearSelection();
-
-        const title = document.getElementById("title").value.trim();
-        const author = document.getElementById("author").value.trim();
-
-        if (!title || !author) {
-          resultsEl.innerHTML = `<div class="muted">Please enter both title and author.</div>`;
-          return;
-        }
-
-        resultsEl.innerHTML = `<div class="muted">Searching…</div>`;
-
-        try {
-          const data = await searchGoogleBooks(title, author);
-          const items = Array.isArray(data.items) ? data.items : [];
-          renderResults(items);
-        } catch (err) {
-          console.error(err);
-          resultsEl.innerHTML = `<div class="muted">Search failed. Open DevTools Console for details.</div>`;
-        }
-      });
-
-      // Add selected to draft and refresh dashboard
-      addBtn.addEventListener("click", async () => {
-        if (!selectedBook) return;
-        draft = [selectedBook, ...draft];
-        saveDraft(draft);
-        clearSelection();
-        resultsEl.innerHTML = "";
-        await refreshDashboard();
-        alert("Added (saved locally as Draft).");
-      });
-
-      document.getElementById("clear-selection").addEventListener("click", () => {
-        clearSelection();
-        resultsEl.innerHTML = "";
-      });
-
-      // Generate updated books.json output (repo + draft)
-      document.getElementById("generate-json").addEventListener("click", async () => {
-        outputEl.value = "Generating…";
-        try {
-          const current = await loadBooksJson();
-          const repoBooks = Array.isArray(current.books) ? current.books : [];
-          const merged = [...draft, ...repoBooks];
-          merged.sort((a, b) => a.release_date.localeCompare(b.release_date));
-
-          const updated = {
-            meta: current.meta || { version: 1 },
-            books: merged
-          };
-
-          outputEl.value = JSON.stringify(updated, null, 2);
-        } catch (err) {
-          console.error(err);
-          outputEl.value = "Failed to generate.";
-        }
-      });
-
-      document.getElementById("copy-json").addEventListener("click", async () => {
-        if (!outputEl.value.trim()) return alert("Nothing to copy yet.");
-        try {
-          await copyToClipboard(outputEl.value);
-          alert("Copied.");
-        } catch {
-          alert("Could not copy automatically. Select the text and copy manually.");
-        }
-      });
-
-            document.getElementById("download-json").addEventListener("click", () => {
-              console.log("[Next Reads] download-json clicked");
-
-        const text = outputEl.value.trim();
-        if (!text) return alert("Nothing to download yet. Click “Generate updated books.json” first.");
-
-        // Basic sanity check: ensure it's valid JSON before downloading
-        try {
-          JSON.parse(text);
-        } catch {
-          return alert("Output is not valid JSON. Re-generate and try again.");
-        }
-
-        const blob = new Blob([text], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "books.json";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      });
-
-      
-      document.getElementById("clear-draft").addEventListener("click", async () => {
-        if (!confirm("Clear local Draft? This only affects this browser.")) return;
-        draft = [];
-        saveDraft(draft);
-        outputEl.value = "";
-        await refreshDashboard();
-      });
-    })();
+    // Load on page load
+    document.addEventListener('DOMContentLoaded', render);
   </script>
 
 </body>

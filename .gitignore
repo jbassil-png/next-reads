@@ -1,0 +1,10 @@
+# Environment configuration
+config.js
+
+# Supabase
+.env
+.env.local
+
+# Editor
+.DS_Store
+.vscode/
