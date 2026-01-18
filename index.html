@@ -259,12 +259,13 @@
       z-index: 1000;
       background: white;
       border: 1px solid #ddd;
-      border-top: none;
-      border-radius: 0 0 6px 6px;
+      border-radius: 6px;
       box-shadow: 0 4px 8px rgba(0,0,0,0.1);
       max-height: 300px;
       overflow-y: auto;
       width: 100%;
+      margin-top: 4px;
+      top: 100%;
     }
     .autocomplete-item {
       padding: 10px 12px;
@@ -307,24 +308,20 @@
 
     <!-- Step 1: Search -->
     <div id="step-search" class="form-step active">
-      <div class="step-indicator">Step 1 of 2: Search for book (start typing for suggestions)</div>
+      <div class="step-indicator">Start typing a title or author name to search</div>
       <div class="form-grid">
         <div class="form-group form-group-with-autocomplete">
-          <label for="search-title">Title *</label>
-          <input type="text" id="search-title" placeholder="Start typing..." required autocomplete="off">
+          <label for="search-title">Title</label>
+          <input type="text" id="search-title" placeholder="e.g., The Doors of Stone" autocomplete="off">
           <div id="title-autocomplete" class="autocomplete-results" style="display: none;"></div>
         </div>
 
-        <div class="form-group">
-          <label for="search-author">Author *</label>
-          <input type="text" id="search-author" placeholder="e.g., Patrick Rothfuss" required autocomplete="off">
+        <div class="form-group form-group-with-autocomplete">
+          <label for="search-author">Author</label>
+          <input type="text" id="search-author" placeholder="e.g., Patrick Rothfuss" autocomplete="off">
+          <div id="author-autocomplete" class="autocomplete-results" style="display: none;"></div>
         </div>
       </div>
-
-      <button type="button" id="search-btn" class="primary">🔍 Search Google Books</button>
-
-      <!-- Search Results -->
-      <div id="search-results" class="search-results"></div>
     </div>
 
     <!-- Step 2: Confirm and Add -->
@@ -554,8 +551,9 @@
       setTimeout(() => { container.innerHTML = ''; }, 5000);
     }
 
-    // Autocomplete for book titles
+    // Autocomplete for book titles and authors
     let autocompleteTimeout;
+
     async function handleTitleAutocomplete(input) {
       const query = input.trim();
       const autocompleteContainer = document.getElementById('title-autocomplete');
@@ -570,7 +568,7 @@
       autocompleteTimeout = setTimeout(async () => {
         try {
           const searchQuery = encodeURIComponent(query);
-          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${searchQuery}&maxResults=5`);
+          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${searchQuery}&maxResults=8`);
           const data = await response.json();
 
           if (!data.items || data.items.length === 0) {
@@ -579,18 +577,7 @@
           }
 
           // Show suggestions
-          autocompleteContainer.innerHTML = data.items.map(item => {
-            const info = item.volumeInfo;
-            const authors = info.authors ? info.authors.join(', ') : 'Unknown Author';
-            return `
-              <div class="autocomplete-item" onclick="selectAutocompleteBook('${escapeHtml(info.title.replace(/'/g, "\\'"))}', '${escapeHtml(authors.replace(/'/g, "\\'"))}')">
-                <div class="autocomplete-title">${escapeHtml(info.title)}</div>
-                <div class="autocomplete-author">${escapeHtml(authors)}</div>
-              </div>
-            `;
-          }).join('');
-
-          autocompleteContainer.style.display = 'block';
+          renderAutocompleteResults(data.items, autocompleteContainer);
         } catch (error) {
           console.error('Autocomplete error:', error);
           autocompleteContainer.style.display = 'none';
@@ -598,19 +585,107 @@
       }, 500);
     }
 
-    // Select book from autocomplete
-    window.selectAutocompleteBook = function(title, author) {
-      document.getElementById('search-title').value = title;
-      document.getElementById('search-author').value = author;
+    async function handleAuthorAutocomplete(input) {
+      const query = input.trim();
+      const autocompleteContainer = document.getElementById('author-autocomplete');
+
+      if (query.length < 3) {
+        autocompleteContainer.style.display = 'none';
+        return;
+      }
+
+      // Debounce - wait 500ms after typing stops
+      clearTimeout(autocompleteTimeout);
+      autocompleteTimeout = setTimeout(async () => {
+        try {
+          const searchQuery = encodeURIComponent(query);
+          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=inauthor:${searchQuery}&maxResults=8`);
+          const data = await response.json();
+
+          if (!data.items || data.items.length === 0) {
+            autocompleteContainer.style.display = 'none';
+            return;
+          }
+
+          // Show suggestions
+          renderAutocompleteResults(data.items, autocompleteContainer);
+        } catch (error) {
+          console.error('Autocomplete error:', error);
+          autocompleteContainer.style.display = 'none';
+        }
+      }, 500);
+    }
+
+    // Render autocomplete suggestions
+    function renderAutocompleteResults(items, container) {
+      container.innerHTML = items.map(item => {
+        const info = item.volumeInfo;
+        const authors = info.authors ? info.authors.join(', ') : 'Unknown Author';
+        const bookDataJson = JSON.stringify(item).replace(/"/g, '&quot;');
+        return `
+          <div class="autocomplete-item" onclick='selectBookFromAutocomplete(${bookDataJson})'>
+            <div class="autocomplete-title">${escapeHtml(info.title)}</div>
+            <div class="autocomplete-author">${escapeHtml(authors)}</div>
+          </div>
+        `;
+      }).join('');
+
+      container.style.display = 'block';
+    }
+
+    // Select book from autocomplete and go directly to confirm step
+    window.selectBookFromAutocomplete = function(bookData) {
+      const info = bookData.volumeInfo;
+      const authors = info.authors ? info.authors.join(', ') : '';
+      const publishedDate = info.publishedDate || '';
+      const isbn = info.industryIdentifiers?.find(id => id.type === 'ISBN_13')?.identifier ||
+                  info.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier || '';
+      const coverUrl = info.imageLinks?.thumbnail?.replace('http:', 'https:') ||
+                      info.imageLinks?.smallThumbnail?.replace('http:', 'https:') || '';
+
+      // Normalize date to YYYY-MM-DD
+      let normalizedDate = '';
+      if (publishedDate) {
+        if (/^\d{4}$/.test(publishedDate)) {
+          normalizedDate = `${publishedDate}-12-31`;
+        } else if (/^\d{4}-\d{2}$/.test(publishedDate)) {
+          normalizedDate = `${publishedDate}-01`;
+        } else {
+          normalizedDate = publishedDate;
+        }
+      }
+
+      // Fill form
+      document.getElementById('title').value = info.title || '';
+      document.getElementById('author').value = authors;
+      document.getElementById('release_date').value = normalizedDate;
+      document.getElementById('isbn').value = isbn;
+      document.getElementById('cover_url').value = coverUrl;
+      document.getElementById('google_books_id').value = bookData.id;
+
+      // Set default library status based on release date
+      const today = new Date();
+      const releaseDate = new Date(normalizedDate);
+      if (releaseDate > today) {
+        document.getElementById('library_status').value = 'not_released';
+      } else {
+        document.getElementById('library_status').value = 'not_available';
+      }
+
+      // Hide autocomplete
       document.getElementById('title-autocomplete').style.display = 'none';
-      // Auto-trigger search
-      searchGoogleBooks();
+      document.getElementById('author-autocomplete').style.display = 'none';
+
+      // Switch to step 2
+      document.getElementById('step-search').classList.remove('active');
+      document.getElementById('step-confirm').classList.add('active');
     };
 
     // Hide autocomplete when clicking outside
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.form-group-with-autocomplete')) {
         document.getElementById('title-autocomplete').style.display = 'none';
+        document.getElementById('author-autocomplete').style.display = 'none';
       }
     });
 
@@ -766,6 +841,13 @@
 
     // Go back to search
     function goBackToSearch() {
+      // Clear search fields
+      document.getElementById('search-title').value = '';
+      document.getElementById('search-author').value = '';
+      document.getElementById('title-autocomplete').style.display = 'none';
+      document.getElementById('author-autocomplete').style.display = 'none';
+
+      // Switch back to search step
       document.getElementById('step-confirm').classList.remove('active');
       document.getElementById('step-search').classList.add('active');
     }
@@ -804,9 +886,6 @@
 
         // Reset form and go back to search
         document.getElementById('add-book-form').reset();
-        document.getElementById('search-title').value = '';
-        document.getElementById('search-author').value = '';
-        document.getElementById('search-results').innerHTML = '';
         goBackToSearch();
 
         render(); // Refresh the book list
@@ -876,7 +955,6 @@
     // Load on page load
     document.addEventListener('DOMContentLoaded', () => {
       // Attach event handlers (no password protection until final submit)
-      document.getElementById('search-btn').addEventListener('click', searchGoogleBooks);
       document.getElementById('add-book-form').addEventListener('submit', handleAddBook);
       document.getElementById('back-btn').addEventListener('click', goBackToSearch);
 
@@ -885,19 +963,9 @@
         handleTitleAutocomplete(e.target.value);
       });
 
-      // Allow Enter key on search inputs
-      document.getElementById('search-title').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          document.getElementById('title-autocomplete').style.display = 'none';
-          searchGoogleBooks();
-        }
-      });
-      document.getElementById('search-author').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          searchGoogleBooks();
-        }
+      // Autocomplete on author input
+      document.getElementById('search-author').addEventListener('input', (e) => {
+        handleAuthorAutocomplete(e.target.value);
       });
 
       // Load books
