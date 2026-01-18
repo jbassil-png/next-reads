@@ -394,13 +394,27 @@
 
   <!-- Configuration -->
   <script src="config.js"></script>
-  <script src="admin-config.js"></script>
+  <script>
+    // Try to load admin config if available (won't exist on GitHub Pages)
+    let ADMIN_CONFIG = null;
+    const adminScript = document.createElement('script');
+    adminScript.src = 'admin-config.js';
+    adminScript.onerror = () => {
+      console.log('Admin config not loaded - add book form will be disabled');
+    };
+    document.head.appendChild(adminScript);
+  </script>
 
   <script>
     // Initialize Supabase clients
     const { createClient } = supabase;
     const supabaseClient = createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
-    const supabaseAdmin = createClient(ADMIN_CONFIG.url, ADMIN_CONFIG.serviceRoleKey);
+
+    // Admin client only available if admin-config.js is loaded
+    let supabaseAdmin = null;
+    if (typeof ADMIN_CONFIG !== 'undefined' && ADMIN_CONFIG !== null) {
+      supabaseAdmin = createClient(ADMIN_CONFIG.url, ADMIN_CONFIG.serviceRoleKey);
+    }
 
     // Helper: Format date
     function formatDate(dateString) {
@@ -748,6 +762,12 @@
     async function handleAddBook(e) {
       e.preventDefault();
 
+      // Check if admin access is available
+      if (!supabaseAdmin) {
+        showMessage('Admin access not available. Please use the admin panel locally.', 'error');
+        return;
+      }
+
       const formData = {
         title: document.getElementById('title').value.trim(),
         author: document.getElementById('author').value.trim(),
@@ -842,6 +862,21 @@
 
     // Load on page load
     document.addEventListener('DOMContentLoaded', () => {
+      // Hide add book section if admin access is not available
+      setTimeout(() => {
+        if (!supabaseAdmin) {
+          const addBookSection = document.querySelector('.add-book-section');
+          if (addBookSection) {
+            addBookSection.style.display = 'none';
+          }
+          // Also hide the divider
+          const divider = document.querySelector('[style*="border-top: 2px solid"]');
+          if (divider) {
+            divider.style.display = 'none';
+          }
+        }
+      }, 100); // Small delay to ensure admin config has loaded if available
+
       // Attach event handlers
       document.getElementById('search-btn').addEventListener('click', searchGoogleBooks);
       document.getElementById('add-book-form').addEventListener('submit', handleAddBook);
