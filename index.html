@@ -616,28 +616,16 @@
 
     // Password authentication
     function promptForPassword() {
-      const password = prompt('Enter admin password to add books:');
+      const password = prompt('Enter admin password to add this book to the list:');
       if (password === ADMIN_PASSWORD) {
         sessionStorage.setItem('adminAuthenticated', 'true');
         supabaseAdmin = createClient(SUPABASE_CONFIG.url, ADMIN_SERVICE_KEY);
-        showMessage('✓ Authenticated! You can now add books.', 'success');
+        showMessage('✓ Authenticated! Adding book...', 'success');
         return true;
       } else if (password !== null) {
-        showMessage('Incorrect password', 'error');
+        showMessage('Incorrect password. Book not added.', 'error');
       }
       return false;
-    }
-
-    // Check authentication before allowing form interaction
-    function checkAuthBeforeInput(e) {
-      if (!supabaseAdmin) {
-        e.preventDefault();
-        e.target.blur();
-        if (promptForPassword()) {
-          // Re-focus on the field after successful auth
-          setTimeout(() => e.target.focus(), 100);
-        }
-      }
     }
 
     // Search Google Books
@@ -786,11 +774,11 @@
     async function handleAddBook(e) {
       e.preventDefault();
 
-      // Check if authenticated
+      // Check if authenticated, prompt if not
       if (!supabaseAdmin) {
-        showMessage('Please authenticate first', 'error');
-        promptForPassword();
-        return;
+        if (!promptForPassword()) {
+          return; // User cancelled or wrong password
+        }
       }
 
       const formData = {
@@ -887,37 +875,14 @@
 
     // Load on page load
     document.addEventListener('DOMContentLoaded', () => {
-      // Add password protection to form fields
-      const formInputs = [
-        document.getElementById('search-title'),
-        document.getElementById('search-author')
-      ];
-
-      formInputs.forEach(input => {
-        input.addEventListener('focus', checkAuthBeforeInput);
-        input.addEventListener('click', checkAuthBeforeInput);
-      });
-
-      // Protect search button
-      const searchBtn = document.getElementById('search-btn');
-      const originalSearchHandler = () => {
-        if (!supabaseAdmin) {
-          promptForPassword();
-        } else {
-          searchGoogleBooks();
-        }
-      };
-
-      // Attach event handlers
-      searchBtn.addEventListener('click', originalSearchHandler);
+      // Attach event handlers (no password protection until final submit)
+      document.getElementById('search-btn').addEventListener('click', searchGoogleBooks);
       document.getElementById('add-book-form').addEventListener('submit', handleAddBook);
       document.getElementById('back-btn').addEventListener('click', goBackToSearch);
 
-      // Autocomplete on title input (only when authenticated)
+      // Autocomplete on title input
       document.getElementById('search-title').addEventListener('input', (e) => {
-        if (supabaseAdmin) {
-          handleTitleAutocomplete(e.target.value);
-        }
+        handleTitleAutocomplete(e.target.value);
       });
 
       // Allow Enter key on search inputs
@@ -925,21 +890,13 @@
         if (e.key === 'Enter') {
           e.preventDefault();
           document.getElementById('title-autocomplete').style.display = 'none';
-          if (supabaseAdmin) {
-            searchGoogleBooks();
-          } else {
-            promptForPassword();
-          }
+          searchGoogleBooks();
         }
       });
       document.getElementById('search-author').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          if (supabaseAdmin) {
-            searchGoogleBooks();
-          } else {
-            promptForPassword();
-          }
+          searchGoogleBooks();
         }
       });
 
