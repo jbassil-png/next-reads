@@ -109,6 +109,88 @@
     .admin-link a:hover {
       text-decoration: underline;
     }
+    .add-book-section {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+    .add-book-section h2 {
+      margin: 0 0 16px;
+      font-size: 18px;
+      color: #222;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+    .form-group label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #555;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .form-group textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button.primary {
+      background: #1976d2;
+      color: white;
+    }
+    button.primary:hover {
+      background: #1565c0;
+    }
+    button.secondary {
+      background: #f5f5f5;
+      color: #555;
+      border: 1px solid #ddd;
+      margin-left: 8px;
+    }
+    button.secondary:hover {
+      background: #e0e0e0;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .message {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+    .message.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
   </style>
 </head>
 <body>
@@ -118,23 +200,65 @@
     <p>Track upcoming book releases and library availability</p>
   </div>
 
+  <div id="message-container"></div>
+
+  <!-- Add Book Section -->
+  <div class="add-book-section">
+    <h2>➕ Add New Book</h2>
+    <form id="add-book-form">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="title">Title *</label>
+          <input type="text" id="title" required>
+        </div>
+
+        <div class="form-group">
+          <label for="author">Author *</label>
+          <input type="text" id="author" required>
+        </div>
+
+        <div class="form-group">
+          <label for="release_date">Release Date *</label>
+          <input type="date" id="release_date" required>
+        </div>
+
+        <div class="form-group">
+          <label for="library_status">Library Status *</label>
+          <select id="library_status" required>
+            <option value="not_released">Not Released</option>
+            <option value="not_available">Not Available</option>
+            <option value="available_to_hold">Available to Hold</option>
+            <option value="on_hold">On Hold</option>
+            <option value="available_to_checkout">Available to Checkout</option>
+          </select>
+        </div>
+
+        <div class="form-group full-width">
+          <label for="notes">Notes (optional)</label>
+          <textarea id="notes" placeholder="Personal notes about this book..."></textarea>
+        </div>
+      </div>
+
+      <button type="submit" class="primary">Add Book</button>
+      <button type="reset" class="secondary">Clear</button>
+    </form>
+  </div>
+
   <div id="error-container"></div>
   <div id="app"></div>
-
-  <div class="admin-link">
-    <a href="admin.html">Admin Panel →</a>
-  </div>
 
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <!-- Configuration -->
   <script src="config.js"></script>
+  <script src="admin-config.js"></script>
 
   <script>
-    // Initialize Supabase client
+    // Initialize Supabase clients
     const { createClient } = supabase;
     const supabaseClient = createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+    const supabaseAdmin = createClient(ADMIN_CONFIG.url, ADMIN_CONFIG.serviceRoleKey);
 
     // Helper: Format date
     function formatDate(dateString) {
@@ -269,6 +393,42 @@
       errorContainer.innerHTML = `<div class="error">${escapeHtml(message)}</div>`;
     }
 
+    // Show success message
+    function showMessage(text, type = 'success') {
+      const container = document.getElementById('message-container');
+      container.innerHTML = `<div class="message ${type}">${escapeHtml(text)}</div>`;
+      setTimeout(() => { container.innerHTML = ''; }, 5000);
+    }
+
+    // Add book form handler
+    async function handleAddBook(e) {
+      e.preventDefault();
+
+      const formData = {
+        title: document.getElementById('title').value.trim(),
+        author: document.getElementById('author').value.trim(),
+        release_date: document.getElementById('release_date').value,
+        library_status: document.getElementById('library_status').value,
+        notes: document.getElementById('notes').value.trim() || null
+      };
+
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('books')
+          .insert([formData])
+          .select();
+
+        if (error) throw error;
+
+        showMessage(`✓ Added "${formData.title}" successfully!`, 'success');
+        document.getElementById('add-book-form').reset();
+        render(); // Refresh the book list
+      } catch (error) {
+        console.error('Error adding book:', error);
+        showMessage(`Error: ${error.message}`, 'error');
+      }
+    }
+
     // Main render function
     async function render() {
       const app = document.getElementById('app');
@@ -327,7 +487,12 @@
     }
 
     // Load on page load
-    document.addEventListener('DOMContentLoaded', render);
+    document.addEventListener('DOMContentLoaded', () => {
+      // Attach form handler
+      document.getElementById('add-book-form').addEventListener('submit', handleAddBook);
+      // Load books
+      render();
+    });
   </script>
 
 </body>
