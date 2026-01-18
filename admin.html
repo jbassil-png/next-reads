@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Admin Panel - Next Reads</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      margin: 24px;
+      max-width: 1200px;
+      margin-left: auto;
+      margin-right: auto;
+      background: #f5f5f5;
+    }
+    .header {
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .header h1 { margin: 0 0 6px; color: #222; }
+    .header p { margin: 0; color: #666; }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 12px;
+      color: #1976d2;
+      text-decoration: none;
+    }
+    .back-link:hover { text-decoration: underline; }
+
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .card h2 {
+      margin: 0 0 16px;
+      font-size: 18px;
+      color: #222;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #555;
+    }
+    input, select, textarea {
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button.primary {
+      background: #1976d2;
+      color: white;
+    }
+    button.primary:hover {
+      background: #1565c0;
+    }
+    button.secondary {
+      background: #f5f5f5;
+      color: #555;
+      border: 1px solid #ddd;
+    }
+    button.secondary:hover {
+      background: #e0e0e0;
+    }
+    button.danger {
+      background: #d32f2f;
+      color: white;
+    }
+    button.danger:hover {
+      background: #c62828;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+    }
+    thead {
+      background: #f8f8f8;
+    }
+    th {
+      text-align: left;
+      padding: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    td {
+      padding: 12px;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: top;
+    }
+    tbody tr:hover {
+      background: #fafafa;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .status-not_released { background: #e3f2fd; color: #1565c0; }
+    .status-not_available { background: #fff3e0; color: #e65100; }
+    .status-available_to_hold { background: #e8f5e9; color: #2e7d32; }
+    .status-on_hold { background: #f3e5f5; color: #6a1b9a; }
+    .status-available_to_checkout { background: #c8e6c9; color: #1b5e20; }
+    .status-checked_out { background: #e0e0e0; color: #555; }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+    .actions button {
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+
+    .message {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+    .message.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .message.error {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 48px;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+
+  <a href="index.html" class="back-link">← Back to Dashboard</a>
+
+  <div class="header">
+    <h1>🔒 Admin Panel</h1>
+    <p>Manage your book tracking list</p>
+  </div>
+
+  <div id="message-container"></div>
+
+  <!-- Add Book Form -->
+  <div class="card">
+    <h2>Add New Book</h2>
+    <form id="add-book-form">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="title">Title *</label>
+          <input type="text" id="title" required>
+        </div>
+
+        <div class="form-group">
+          <label for="author">Author *</label>
+          <input type="text" id="author" required>
+        </div>
+
+        <div class="form-group">
+          <label for="release_date">Release Date *</label>
+          <input type="date" id="release_date" required>
+        </div>
+
+        <div class="form-group">
+          <label for="library_status">Library Status *</label>
+          <select id="library_status" required>
+            <option value="not_released">Not Released</option>
+            <option value="not_available">Not Available</option>
+            <option value="available_to_hold">Available to Hold</option>
+            <option value="on_hold">On Hold</option>
+            <option value="available_to_checkout">Available to Checkout</option>
+            <option value="checked_out">Checked Out</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="isbn">ISBN (optional)</label>
+          <input type="text" id="isbn" placeholder="978-...">
+        </div>
+
+        <div class="form-group">
+          <label for="cover_url">Cover Image URL (optional)</label>
+          <input type="url" id="cover_url" placeholder="https://...">
+        </div>
+
+        <div class="form-group full-width">
+          <label for="notes">Notes (optional)</label>
+          <textarea id="notes" placeholder="Personal notes about this book..."></textarea>
+        </div>
+      </div>
+
+      <button type="submit" class="primary">Add Book</button>
+      <button type="reset" class="secondary">Clear Form</button>
+    </form>
+  </div>
+
+  <!-- Books List -->
+  <div class="card">
+    <h2>All Books</h2>
+    <div id="books-container">
+      <div class="loading">Loading books...</div>
+    </div>
+  </div>
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Admin Configuration -->
+  <script src="admin-config.js"></script>
+
+  <script>
+    // Initialize Supabase admin client (bypasses RLS)
+    const { createClient } = supabase;
+    const supabaseAdmin = createClient(ADMIN_CONFIG.url, ADMIN_CONFIG.serviceRoleKey);
+
+    // Helper: Show message
+    function showMessage(text, type = 'success') {
+      const container = document.getElementById('message-container');
+      container.innerHTML = `<div class="message ${type}">${escapeHtml(text)}</div>`;
+      setTimeout(() => { container.innerHTML = ''; }, 5000);
+    }
+
+    // Helper: Escape HTML
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Helper: Format date
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+
+    // Helper: Format status
+    function formatStatus(status) {
+      const statusMap = {
+        'not_released': 'Not Released',
+        'not_available': 'Not Available',
+        'available_to_hold': 'Available to Hold',
+        'on_hold': 'On Hold',
+        'available_to_checkout': 'Available to Checkout',
+        'checked_out': 'Checked Out'
+      };
+      return statusMap[status] || status;
+    }
+
+    // Add book
+    document.getElementById('add-book-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = {
+        title: document.getElementById('title').value.trim(),
+        author: document.getElementById('author').value.trim(),
+        release_date: document.getElementById('release_date').value,
+        library_status: document.getElementById('library_status').value,
+        isbn: document.getElementById('isbn').value.trim() || null,
+        cover_url: document.getElementById('cover_url').value.trim() || null,
+        notes: document.getElementById('notes').value.trim() || null
+      };
+
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('books')
+          .insert([formData])
+          .select();
+
+        if (error) throw error;
+
+        showMessage(`✓ Added "${formData.title}" successfully!`, 'success');
+        e.target.reset();
+        loadBooks(); // Refresh list
+      } catch (error) {
+        console.error('Error adding book:', error);
+        showMessage(`Error: ${error.message}`, 'error');
+      }
+    });
+
+    // Load all books
+    async function loadBooks() {
+      const container = document.getElementById('books-container');
+      container.innerHTML = '<div class="loading">Loading books...</div>';
+
+      try {
+        const { data: books, error } = await supabaseAdmin
+          .from('books')
+          .select('*')
+          .order('release_date', { ascending: false });
+
+        if (error) throw error;
+
+        if (books.length === 0) {
+          container.innerHTML = '<p style="color: #999; text-align: center; padding: 24px;">No books yet. Add your first book above!</p>';
+          return;
+        }
+
+        container.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Author</th>
+                <th>Release Date</th>
+                <th>Status</th>
+                <th>Notes</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${books.map(book => `
+                <tr data-id="${book.id}">
+                  <td><strong>${escapeHtml(book.title)}</strong></td>
+                  <td>${escapeHtml(book.author)}</td>
+                  <td>${formatDate(book.release_date)}</td>
+                  <td>
+                    <span class="status-badge status-${book.library_status}">
+                      ${formatStatus(book.library_status)}
+                    </span>
+                  </td>
+                  <td>${book.notes ? escapeHtml(book.notes.substring(0, 50)) + (book.notes.length > 50 ? '...' : '') : '—'}</td>
+                  <td>
+                    <div class="actions">
+                      <button class="secondary" onclick="updateStatus('${book.id}')">Update Status</button>
+                      <button class="danger" onclick="deleteBook('${book.id}', '${escapeHtml(book.title).replace(/'/g, "\\'")}')">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (error) {
+        console.error('Error loading books:', error);
+        container.innerHTML = `<div class="message error">Error loading books: ${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    // Update book status
+    window.updateStatus = async function(bookId) {
+      const newStatus = prompt('Enter new status:\n- not_released\n- not_available\n- available_to_hold\n- on_hold\n- available_to_checkout\n- checked_out');
+
+      if (!newStatus) return;
+
+      const validStatuses = ['not_released', 'not_available', 'available_to_hold', 'on_hold', 'available_to_checkout', 'checked_out'];
+      if (!validStatuses.includes(newStatus)) {
+        showMessage('Invalid status!', 'error');
+        return;
+      }
+
+      try {
+        const { error } = await supabaseAdmin
+          .from('books')
+          .update({ library_status: newStatus })
+          .eq('id', bookId);
+
+        if (error) throw error;
+
+        showMessage('✓ Status updated successfully!', 'success');
+        loadBooks();
+      } catch (error) {
+        console.error('Error updating status:', error);
+        showMessage(`Error: ${error.message}`, 'error');
+      }
+    };
+
+    // Delete book
+    window.deleteBook = async function(bookId, title) {
+      if (!confirm(`Are you sure you want to delete "${title}"?\n\nThis cannot be undone.`)) {
+        return;
+      }
+
+      try {
+        const { error } = await supabaseAdmin
+          .from('books')
+          .delete()
+          .eq('id', bookId);
+
+        if (error) throw error;
+
+        showMessage(`✓ Deleted "${title}"`, 'success');
+        loadBooks();
+      } catch (error) {
+        console.error('Error deleting book:', error);
+        showMessage(`Error: ${error.message}`, 'error');
+      }
+    };
+
+    // Load books on page load
+    document.addEventListener('DOMContentLoaded', loadBooks);
+  </script>
+
+</body>
+</html>
