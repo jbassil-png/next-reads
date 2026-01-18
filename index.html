@@ -442,6 +442,7 @@
               <th>Released</th>
               <th>Library Status</th>
               <th>Last Checked</th>
+              <th style="width: 40px;"></th>
             </tr>
           </thead>
           <tbody>
@@ -465,6 +466,11 @@
                     </span>
                   </td>
                   <td class="days-label">${lastChecked}</td>
+                  <td>
+                    <button onclick="deleteBook(${book.id}, '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
+                            style="background: none; border: none; color: #999; cursor: pointer; font-size: 18px; padding: 4px 8px;"
+                            title="Remove book">×</button>
+                  </td>
                 </tr>
               `;
             }).join('')}
@@ -488,6 +494,7 @@
               <th>Release Date</th>
               <th>Days Until Release</th>
               <th>Notes</th>
+              <th style="width: 40px;"></th>
             </tr>
           </thead>
           <tbody>
@@ -504,6 +511,11 @@
                   <td>${formatDate(book.release_date)}</td>
                   <td class="days-label">${daysLabel}</td>
                   <td class="days-label">${book.notes ? escapeHtml(book.notes) : '—'}</td>
+                  <td>
+                    <button onclick="deleteBook(${book.id}, '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
+                            style="background: none; border: none; color: #999; cursor: pointer; font-size: 18px; padding: 4px 8px;"
+                            title="Remove book">×</button>
+                  </td>
                 </tr>
               `;
             }).join('')}
@@ -875,6 +887,28 @@
         showMessage(`Error: ${error.message}`, 'error');
       }
     }
+
+    // Delete book handler
+    window.deleteBook = async function(bookId, bookTitle) {
+      if (!confirm(`Remove "${bookTitle}" from your list?`)) {
+        return;
+      }
+
+      try {
+        const { error } = await supabaseAdmin
+          .from('books')
+          .delete()
+          .eq('id', bookId);
+
+        if (error) throw error;
+
+        showMessage(`✓ Removed "${bookTitle}" from list`, 'success');
+        render(); // Refresh the book list
+      } catch (error) {
+        console.error('Error deleting book:', error);
+        showMessage(`Error: ${error.message}`, 'error');
+      }
+    };
 
     // Main render function
     async function render() {
