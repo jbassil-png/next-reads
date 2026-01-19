@@ -348,8 +348,8 @@
                 <span id="confirm-date"></span>
               </div>
               <div>
-                <span style="color: #666;">ISBN:</span>
-                <span id="confirm-isbn"></span>
+                <label for="isbn-edit" style="color: #666; display: block; margin-bottom: 4px;">ISBN (verify/edit if needed):</label>
+                <input type="text" id="isbn-edit" style="width: 100%; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
               </div>
             </div>
           </div>
@@ -358,7 +358,6 @@
         <input type="hidden" id="title">
         <input type="hidden" id="author">
         <input type="hidden" id="release_date">
-        <input type="hidden" id="isbn">
         <input type="hidden" id="cover_url">
         <input type="hidden" id="google_books_id">
         <input type="hidden" id="notes">
@@ -706,7 +705,7 @@
       document.getElementById('title').value = info.title || '';
       document.getElementById('author').value = authors;
       document.getElementById('release_date').value = normalizedDate;
-      document.getElementById('isbn').value = isbn;
+      document.getElementById('isbn-edit').value = isbn;
       document.getElementById('cover_url').value = coverUrl;
       document.getElementById('google_books_id').value = bookData.id;
       document.getElementById('notes').value = ''; // Always empty now
@@ -813,12 +812,30 @@
           return;
         }
 
-        // Sort ebooks first
+        // Check Overdrive to see which results are available at SFPL
+        let overdriveTitles = new Set();
+        try {
+          const overdriveQuery = encodeURIComponent(title);
+          const overdriveResponse = await fetch(`https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${overdriveQuery}`);
+          if (overdriveResponse.ok) {
+            const overdriveData = await overdriveResponse.json();
+            if (overdriveData.items) {
+              // Store all Overdrive titles (lowercase for matching)
+              overdriveData.items.forEach(item => {
+                overdriveTitles.add(item.title.toLowerCase());
+              });
+            }
+          }
+        } catch (error) {
+          console.log('Could not check Overdrive:', error);
+        }
+
+        // Sort books with Overdrive matches first
         const sortedBooks = booksWithISBN.sort((a, b) => {
-          const aIsEbook = a.saleInfo?.isEbook || a.accessInfo?.epub?.isAvailable || a.accessInfo?.pdf?.isAvailable;
-          const bIsEbook = b.saleInfo?.isEbook || b.accessInfo?.epub?.isAvailable || b.accessInfo?.pdf?.isAvailable;
-          if (aIsEbook && !bIsEbook) return -1;
-          if (!aIsEbook && bIsEbook) return 1;
+          const aInOverdrive = overdriveTitles.has(a.volumeInfo.title.toLowerCase());
+          const bInOverdrive = overdriveTitles.has(b.volumeInfo.title.toLowerCase());
+          if (aInOverdrive && !bInOverdrive) return -1;
+          if (!aInOverdrive && bInOverdrive) return 1;
           return 0;
         });
 
@@ -830,11 +847,12 @@
           const info = item.volumeInfo;
           const authors = info.authors ? info.authors.join(', ') : 'Unknown Author';
           const publishedDate = info.publishedDate || 'Unknown';
-          const isbn = info.industryIdentifiers?.find(id => id.type === 'ISBN_13')?.identifier ||
-                      info.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier ||
-                      'No ISBN';
+
+          // Show ALL ISBNs
+          const allISBNs = info.industryIdentifiers?.map(id => `${id.identifier} (${id.type})`).join(', ') || 'No ISBN';
+
           const thumbnail = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || '';
-          const isEbook = item.saleInfo?.isEbook || item.accessInfo?.epub?.isAvailable || item.accessInfo?.pdf?.isAvailable;
+          const inOverdrive = overdriveTitles.has(info.title.toLowerCase());
 
           return `
             <div class="book-result" data-book-index="${index}">
@@ -842,11 +860,12 @@
               <div class="book-info">
                 <div class="book-title">
                   ${escapeHtml(info.title)}
-                  ${isEbook ? '<span style="margin-left: 8px; padding: 2px 8px; background: #4CAF50; color: white; border-radius: 4px; font-size: 12px; font-weight: 600;">eBOOK</span>' : ''}
+                  ${inOverdrive ? '<span style="margin-left: 8px; padding: 2px 8px; background: #FF9800; color: white; border-radius: 4px; font-size: 12px; font-weight: 600;">IN OVERDRIVE</span>' : ''}
                 </div>
                 <div class="book-author">${escapeHtml(authors)}</div>
                 <div class="book-meta">
-                  Published: ${escapeHtml(publishedDate)} • ISBN: ${escapeHtml(isbn)}
+                  Published: ${escapeHtml(publishedDate)}<br>
+                  ISBNs: ${escapeHtml(allISBNs)}
                 </div>
               </div>
               <div class="book-actions">
@@ -942,7 +961,7 @@
         author: document.getElementById('author').value.trim(),
         release_date: document.getElementById('release_date').value,
         library_status: document.getElementById('library_status').value,
-        isbn: document.getElementById('isbn').value.trim() || null,
+        isbn: document.getElementById('isbn-edit').value.trim() || null,
         cover_url: document.getElementById('cover_url').value.trim() || null,
         google_books_id: document.getElementById('google_books_id').value.trim() || null,
         notes: null
@@ -959,8 +978,8 @@
         const addedBook = data[0];
         showMessage(`✓ Added "${formData.title}" successfully!`, 'success');
 
-        // Check library status if book has ISBN and is released
-        if (addedBook.isbn && formData.library_status !== 'not_released') {
+        // Check library status if book is released
+        if (formData.library_status !== 'not_released') {
           showMessage(`Checking library availability...`, 'info');
           const libraryStatus = await checkSingleBook(addedBook);
 
@@ -1013,13 +1032,10 @@
 
     // Check single book's library status via Overdrive
     async function checkSingleBook(book) {
-      if (!book.isbn) {
-        return null; // Can't check without ISBN
-      }
-
       try {
-        // Search by ISBN (now that we filter to ebooks only, ISBN should match)
-        const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${book.isbn}`;
+        // Search by title (more reliable than ISBN for matching across editions)
+        const query = encodeURIComponent(book.title);
+        const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${query}`;
         const searchResponse = await fetch(searchUrl);
 
         if (!searchResponse.ok) {
@@ -1033,8 +1049,14 @@
           return 'not_available'; // Not in Overdrive catalog
         }
 
-        // Use first result (should be exact match by ISBN)
-        const overdriveBook = searchData.items[0];
+        // Find best match (exact title match, or first result)
+        let overdriveBook = searchData.items[0];
+        const exactMatch = searchData.items.find(item =>
+          item.title.toLowerCase() === book.title.toLowerCase()
+        );
+        if (exactMatch) {
+          overdriveBook = exactMatch;
+        }
 
         const isAvailable = overdriveBook.isAvailable === true;
         const availableCopies = overdriveBook.availableCopies || 0;
