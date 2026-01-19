@@ -548,7 +548,6 @@
               <th>Author</th>
               <th>Release Date</th>
               <th>Days Until Release</th>
-              <th>Notes</th>
               <th style="width: 40px;"></th>
             </tr>
           </thead>
@@ -565,7 +564,6 @@
                   <td>${escapeHtml(book.author)}</td>
                   <td>${formatDate(book.release_date)}</td>
                   <td class="days-label">${daysLabel}</td>
-                  <td class="days-label">${book.notes ? escapeHtml(book.notes) : '—'}</td>
                   <td>
                     <button onclick="deleteBook('${book.id}', '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
                             style="background: none; border: none; color: #999; cursor: pointer; font-size: 18px; padding: 4px 8px;"
