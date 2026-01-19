@@ -477,6 +477,7 @@
                     <span class="status-badge status-${book.library_status}">
                       ${formatStatus(book.library_status)}
                     </span>
+                    ${isClickable ? '<span style="margin-left: 8px; color: #1976d2; font-size: 14px;">↗</span>' : ''}
                   </td>
                   <td class="days-label">${lastChecked}</td>
                   <td>
@@ -1145,13 +1146,16 @@
         const searchData = await searchResponse.json();
 
         if (!searchData.items || searchData.items.length === 0) {
-          return 'not_available'; // Not in Overdrive catalog
+          // Not in Overdrive catalog at all
+          return { status: 'not_available', overdrive_id: null };
         }
 
         // Find best match using multiple strategies:
         // 1. If we have all_isbns, try to match by ISBN
         // 2. Fall back to normalized title matching
-        let overdriveBook = searchData.items[0];
+        // Only store overdrive_id if we have a confident match
+        let overdriveBook = null;
+        let matchFound = false;
 
         if (book.all_isbns && book.all_isbns.length > 0) {
           // Try to find a match by ISBN
@@ -1165,20 +1169,27 @@
           if (isbnMatch) {
             console.log(`ISBN match found for ${book.title}`);
             overdriveBook = isbnMatch;
-          } else {
-            console.log(`No ISBN match for ${book.title}, using title match`);
+            matchFound = true;
           }
         }
 
-        // If no ISBN match, use normalized title matching
-        if (!overdriveBook || overdriveBook === searchData.items[0]) {
+        // If no ISBN match, try normalized title matching
+        if (!matchFound) {
           const normalizedBookTitle = normalizeTitle(book.title);
           const titleMatch = searchData.items.find(item =>
             normalizeTitle(item.title) === normalizedBookTitle
           );
           if (titleMatch) {
+            console.log(`Title match found for ${book.title}`);
             overdriveBook = titleMatch;
+            matchFound = true;
           }
+        }
+
+        // If no confident match found, don't store overdrive_id
+        if (!matchFound) {
+          console.log(`No confident match for ${book.title} in Overdrive`);
+          return { status: 'not_available', overdrive_id: null };
         }
 
         const isAvailable = overdriveBook.isAvailable === true;

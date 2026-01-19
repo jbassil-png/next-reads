@@ -68,7 +68,9 @@ serve(async (req) => {
         // Find best match using multiple strategies:
         // 1. If we have all_isbns, try to match by ISBN
         // 2. Fall back to normalized title matching
-        let overdriveBook = searchData.items[0]
+        // Only store overdrive_id if we have a confident match
+        let overdriveBook = null
+        let matchFound = false
 
         if (book.all_isbns && book.all_isbns.length > 0) {
           // Try to find a match by ISBN
@@ -82,20 +84,55 @@ serve(async (req) => {
           if (isbnMatch) {
             console.log(`ISBN match found for ${book.title}`)
             overdriveBook = isbnMatch
-          } else {
-            console.log(`No ISBN match for ${book.title}, using title match`)
+            matchFound = true
           }
         }
 
-        // If no ISBN match, use normalized title matching
-        if (!overdriveBook || overdriveBook === searchData.items[0]) {
+        // If no ISBN match, try normalized title matching
+        if (!matchFound) {
           const normalizedBookTitle = normalizeTitle(book.title)
           const titleMatch = searchData.items.find((item: any) =>
             normalizeTitle(item.title) === normalizedBookTitle
           )
           if (titleMatch) {
+            console.log(`Title match found for ${book.title}`)
             overdriveBook = titleMatch
+            matchFound = true
           }
+        }
+
+        // If no confident match found, mark as not available and don't store overdrive_id
+        if (!matchFound) {
+          console.log(`No confident match for ${book.title} in Overdrive`)
+
+          // Only update if current status is not already 'not_available'
+          if (book.library_status !== 'not_available') {
+            const { error: updateError } = await supabase
+              .from('books')
+              .update({
+                library_status: 'not_available',
+                overdrive_id: null,
+                last_checked_at: new Date().toISOString()
+              })
+              .eq('id', book.id)
+
+            if (updateError) {
+              console.error(`Failed to update ${book.title}:`, updateError)
+              results.push({ title: book.title, status: 'update_failed', error: updateError.message })
+            } else {
+              console.log(`Updated ${book.title}: ${book.library_status} → not_available (no match)`)
+              results.push({
+                title: book.title,
+                oldStatus: book.library_status,
+                newStatus: 'not_available',
+                reason: 'no_confident_match'
+              })
+            }
+          } else {
+            results.push({ title: book.title, status: 'no_change', currentStatus: 'not_available' })
+          }
+
+          continue
         }
 
         const isAvailable = overdriveBook.isAvailable === true
