@@ -584,8 +584,17 @@
             return;
           }
 
+          // Sort ebooks first (Google Books saleInfo.isEbook or epub/pdf availability)
+          const sortedBooks = booksWithISBN.sort((a, b) => {
+            const aIsEbook = a.saleInfo?.isEbook || a.accessInfo?.epub?.isAvailable || a.accessInfo?.pdf?.isAvailable;
+            const bIsEbook = b.saleInfo?.isEbook || b.accessInfo?.epub?.isAvailable || b.accessInfo?.pdf?.isAvailable;
+            if (aIsEbook && !bIsEbook) return -1;
+            if (!aIsEbook && bIsEbook) return 1;
+            return 0;
+          });
+
           // Show suggestions
-          renderAutocompleteResults(booksWithISBN, autocompleteContainer);
+          renderAutocompleteResults(sortedBooks, autocompleteContainer);
         } catch (error) {
           console.error('Autocomplete error:', error);
           autocompleteContainer.style.display = 'none';
@@ -628,8 +637,17 @@
             return;
           }
 
+          // Sort ebooks first
+          const sortedBooks = booksWithISBN.sort((a, b) => {
+            const aIsEbook = a.saleInfo?.isEbook || a.accessInfo?.epub?.isAvailable || a.accessInfo?.pdf?.isAvailable;
+            const bIsEbook = b.saleInfo?.isEbook || b.accessInfo?.epub?.isAvailable || b.accessInfo?.pdf?.isAvailable;
+            if (aIsEbook && !bIsEbook) return -1;
+            if (!aIsEbook && bIsEbook) return 1;
+            return 0;
+          });
+
           // Show suggestions
-          renderAutocompleteResults(booksWithISBN, autocompleteContainer);
+          renderAutocompleteResults(sortedBooks, autocompleteContainer);
         } catch (error) {
           console.error('Autocomplete error:', error);
           autocompleteContainer.style.display = 'none';
@@ -642,13 +660,18 @@
       container.innerHTML = items.map((item, index) => {
         const info = item.volumeInfo;
         const authors = info.authors ? info.authors.join(', ') : 'Unknown Author';
+        const isEbook = item.saleInfo?.isEbook || item.accessInfo?.epub?.isAvailable || item.accessInfo?.pdf?.isAvailable;
+
         // Store the item in a global array for onclick access
         if (!window.autocompleteItems) window.autocompleteItems = [];
         window.autocompleteItems[index] = item;
 
         return `
           <div class="autocomplete-item" onclick='selectBookFromAutocomplete(window.autocompleteItems[${index}])'>
-            <div class="autocomplete-title">${escapeHtml(info.title)}</div>
+            <div class="autocomplete-title">
+              ${escapeHtml(info.title)}
+              ${isEbook ? '<span style="margin-left: 8px; padding: 2px 6px; background: #4CAF50; color: white; border-radius: 3px; font-size: 11px; font-weight: 600;">eBOOK</span>' : ''}
+            </div>
             <div class="autocomplete-author">${escapeHtml(authors)}</div>
           </div>
         `;
@@ -790,11 +813,20 @@
           return;
         }
 
+        // Sort ebooks first
+        const sortedBooks = booksWithISBN.sort((a, b) => {
+          const aIsEbook = a.saleInfo?.isEbook || a.accessInfo?.epub?.isAvailable || a.accessInfo?.pdf?.isAvailable;
+          const bIsEbook = b.saleInfo?.isEbook || b.accessInfo?.epub?.isAvailable || b.accessInfo?.pdf?.isAvailable;
+          if (aIsEbook && !bIsEbook) return -1;
+          if (!aIsEbook && bIsEbook) return 1;
+          return 0;
+        });
+
         // Store search results globally for selection
-        window.searchResults = booksWithISBN;
+        window.searchResults = sortedBooks;
 
         // Render results
-        resultsContainer.innerHTML = booksWithISBN.map((item, index) => {
+        resultsContainer.innerHTML = sortedBooks.map((item, index) => {
           const info = item.volumeInfo;
           const authors = info.authors ? info.authors.join(', ') : 'Unknown Author';
           const publishedDate = info.publishedDate || 'Unknown';
@@ -802,12 +834,16 @@
                       info.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier ||
                       'No ISBN';
           const thumbnail = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || '';
+          const isEbook = item.saleInfo?.isEbook || item.accessInfo?.epub?.isAvailable || item.accessInfo?.pdf?.isAvailable;
 
           return `
             <div class="book-result" data-book-index="${index}">
               ${thumbnail ? `<img src="${thumbnail}" alt="Cover" class="book-cover">` : '<div class="book-cover"></div>'}
               <div class="book-info">
-                <div class="book-title">${escapeHtml(info.title)}</div>
+                <div class="book-title">
+                  ${escapeHtml(info.title)}
+                  ${isEbook ? '<span style="margin-left: 8px; padding: 2px 8px; background: #4CAF50; color: white; border-radius: 4px; font-size: 12px; font-weight: 600;">eBOOK</span>' : ''}
+                </div>
                 <div class="book-author">${escapeHtml(authors)}</div>
                 <div class="book-meta">
                   Published: ${escapeHtml(publishedDate)} • ISBN: ${escapeHtml(isbn)}
