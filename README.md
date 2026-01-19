@@ -196,6 +196,64 @@ Replace `YOUR-PROJECT` and `YOUR-SERVICE-ROLE-KEY` with your values.
 
 ---
 
+## Customizing for Your Library
+
+This project is currently configured for **San Francisco Public Library (SFPL)**. If you want to use it with a different Overdrive library system, you'll need to update these values:
+
+### 1. Find Your Library's Overdrive ID
+
+1. Go to your library's Overdrive website (e.g., `https://yourlibrary.overdrive.com`)
+2. The subdomain before `.overdrive.com` is your library ID
+   - Example: `sfpl.overdrive.com` → library ID is `sfpl`
+   - Example: `lapl.overdrive.com` → library ID is `lapl`
+
+### 2. Update Edge Functions
+
+**In `supabase/functions/check-overdrive/index.ts`:**
+
+Find and replace these values:
+```typescript
+// Line ~50 and ~137
+const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${query}`
+// Replace 'sfpl' with your library ID
+```
+
+**In `supabase/functions/send-weekly-summary/index.ts`:**
+
+Find and replace:
+```typescript
+// Around line 167
+<a href="https://sfpl.overdrive.com/media/${book.overdrive_id}"
+// Replace 'sfpl' with your library ID
+```
+
+### 3. Update Email Templates
+
+**In both Edge Functions**, update the dashboard URL in email templates:
+
+```typescript
+// Find this in both files:
+<a href="https://jbassil-png.github.io/next-reads/"
+// Replace with your GitHub Pages URL or domain
+```
+
+### 4. Update Frontend (Optional)
+
+**In `index.html`:**
+
+Search for `sfpl.overdrive.com` and replace with your library's domain (appears in multiple places for clickable row links).
+
+### 5. Redeploy
+
+After making changes:
+1. Redeploy both Edge Functions in Supabase Dashboard
+2. Update frontend (push to GitHub Pages or redeploy)
+3. Test with a book you know is in your library's collection
+
+**Note:** Future versions will make this configuration-based rather than requiring code changes.
+
+---
+
 ## How It Works
 
 ### Adding Books
