@@ -562,7 +562,7 @@
       autocompleteTimeout = setTimeout(async () => {
         try {
           const searchQuery = encodeURIComponent(query);
-          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${searchQuery}&maxResults=8`);
+          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${searchQuery}&maxResults=20`);
           const data = await response.json();
 
           if (!data.items || data.items.length === 0) {
@@ -570,8 +570,22 @@
             return;
           }
 
+          // Filter to only show books with ISBNs (needed for Overdrive matching)
+          // This also tends to filter out print-only editions
+          const booksWithISBN = data.items.filter(item => {
+            const info = item.volumeInfo;
+            return info.industryIdentifiers?.some(id =>
+              id.type === 'ISBN_13' || id.type === 'ISBN_10'
+            );
+          }).slice(0, 8);
+
+          if (booksWithISBN.length === 0) {
+            autocompleteContainer.style.display = 'none';
+            return;
+          }
+
           // Show suggestions
-          renderAutocompleteResults(data.items, autocompleteContainer);
+          renderAutocompleteResults(booksWithISBN, autocompleteContainer);
         } catch (error) {
           console.error('Autocomplete error:', error);
           autocompleteContainer.style.display = 'none';
@@ -593,7 +607,7 @@
       autocompleteTimeout = setTimeout(async () => {
         try {
           const searchQuery = encodeURIComponent(query);
-          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=inauthor:${searchQuery}&maxResults=8`);
+          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=inauthor:${searchQuery}&maxResults=20`);
           const data = await response.json();
 
           if (!data.items || data.items.length === 0) {
@@ -601,8 +615,21 @@
             return;
           }
 
+          // Filter to only show books with ISBNs (needed for Overdrive matching)
+          const booksWithISBN = data.items.filter(item => {
+            const info = item.volumeInfo;
+            return info.industryIdentifiers?.some(id =>
+              id.type === 'ISBN_13' || id.type === 'ISBN_10'
+            );
+          }).slice(0, 8);
+
+          if (booksWithISBN.length === 0) {
+            autocompleteContainer.style.display = 'none';
+            return;
+          }
+
           // Show suggestions
-          renderAutocompleteResults(data.items, autocompleteContainer);
+          renderAutocompleteResults(booksWithISBN, autocompleteContainer);
         } catch (error) {
           console.error('Autocomplete error:', error);
           autocompleteContainer.style.display = 'none';
@@ -745,11 +772,29 @@
           return;
         }
 
+        // Filter to only show books with ISBNs (needed for Overdrive matching)
+        const booksWithISBN = data.items.filter(item => {
+          const info = item.volumeInfo;
+          return info.industryIdentifiers?.some(id =>
+            id.type === 'ISBN_13' || id.type === 'ISBN_10'
+          );
+        });
+
+        if (booksWithISBN.length === 0) {
+          resultsContainer.innerHTML = `
+            <div class="empty-state">
+              No books with ISBNs found for "${title}" by "${author}".<br>
+              Try different search terms.
+            </div>
+          `;
+          return;
+        }
+
         // Store search results globally for selection
-        window.searchResults = data.items;
+        window.searchResults = booksWithISBN;
 
         // Render results
-        resultsContainer.innerHTML = data.items.map((item, index) => {
+        resultsContainer.innerHTML = booksWithISBN.map((item, index) => {
           const info = item.volumeInfo;
           const authors = info.authors ? info.authors.join(', ') : 'Unknown Author';
           const publishedDate = info.publishedDate || 'Unknown';
