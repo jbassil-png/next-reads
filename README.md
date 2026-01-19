@@ -31,6 +31,7 @@ Track book releases you're anticipating and automatically monitor their availabi
 
 - **One-click library access:**
   - Click any available book row to open it in Overdrive (new tab)
+  - Clickable rows show a blue link-out icon (↗) next to the status badge
   - Direct links to place holds or check out books
 
 - **Public sharing:**
@@ -160,8 +161,11 @@ Replace `YOUR-PROJECT` and `YOUR-SERVICE-ROLE-KEY` with your values.
 1. **Search Overdrive:** Query by title to find book in SFPL's catalog
 2. **Match by ISBN:** If book has `all_isbns`, tries to match any ISBN with Overdrive's formats
 3. **Fallback to Title:** If no ISBN match, uses normalized title matching
-4. **Extract Status:** Determines if book is available to checkout, available to hold, or not available
-5. **Store Link:** Saves Overdrive ID for one-click access
+4. **Confident Match Required:** Only stores `overdrive_id` if we have an ISBN match OR exact normalized title match
+5. **Extract Status:** Determines if book is available to checkout, available to hold, or not available
+6. **Store Link:** Saves Overdrive ID for one-click access (only when confident match found)
+
+**Important:** If a book is released but not in SFPL's Overdrive catalog, it will show as "Not Available" with no clickable link. This prevents linking to wrong books and allows future checks to find the book if SFPL adds it later.
 
 ### Automated Updates
 
@@ -172,6 +176,7 @@ Replace `YOUR-PROJECT` and `YOUR-SERVICE-ROLE-KEY` with your values.
 ### Clicking Through
 
 - Any book with status "Available to Hold" or "Available to Checkout" has a clickable row
+- Clickable rows display a blue link-out icon (↗) next to the status badge
 - Hover shows blue highlight
 - Click opens book in SFPL Overdrive in new tab
 - Can immediately place hold or check out
@@ -190,11 +195,11 @@ Replace `YOUR-PROJECT` and `YOUR-SERVICE-ROLE-KEY` with your values.
 - [x] Multi-edition ISBN collection
 - [x] Edge Function for availability checks
 - [x] Scheduled daily checks via pg_cron
-- [x] Intelligent ISBN + title matching
-- [x] Clickable rows to Overdrive
+- [x] Intelligent ISBN + title matching with confident match requirement
+- [x] Clickable rows to Overdrive with link-out icon
 
-**Phase 3: Polish & Features** 📋
-- [ ] Email notifications when books become available
+**Phase 3: Polish & Features** 🚧
+- [ ] Email notifications when books become available (next up!)
 - [ ] Series tracking
 - [ ] Mobile-optimized design
 - [ ] Reading history / archive
@@ -223,7 +228,17 @@ next-reads/
 
 ## Technical Highlights
 
-### ISBN Matching Strategy
+### Confident Matching Strategy
+
+To prevent linking to the wrong books in Overdrive, the system requires a **confident match** before storing an `overdrive_id`:
+
+- **ISBN Match:** If any ISBN from `all_isbns` matches any ISBN in Overdrive's formats → confident match ✓
+- **Exact Title Match:** If normalized titles match exactly → confident match ✓
+- **No Match:** If neither condition is met → sets `library_status = 'not_available'` and `overdrive_id = NULL`
+
+This prevents scenarios where a book isn't in SFPL's catalog but a similarly-titled book appears in search results. Books without confident matches remain in your list as "Not Available" and will be rechecked daily.
+
+### ISBN Collection Strategy
 
 The system collects ISBNs from all editions of a book because Google Books and Overdrive often have different editions:
 
