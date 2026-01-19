@@ -57,6 +57,10 @@
     tbody tr:hover {
       background: #fafafa;
     }
+    .clickable-row:hover {
+      background: #e3f2fd !important;
+      transition: background 0.2s;
+    }
     .empty-state {
       padding: 48px 24px;
       text-align: center;
@@ -342,14 +346,10 @@
               <div style="color: #666; margin-top: 4px;" id="confirm-author"></div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px;">
+            <div style="display: grid; grid-template-columns: 1fr; gap: 12px; font-size: 14px;">
               <div>
                 <span style="color: #666;">Release Date:</span>
                 <span id="confirm-date"></span>
-              </div>
-              <div>
-                <label for="isbn-edit" style="color: #666; display: block; margin-bottom: 4px;">ISBN (verify/edit if needed):</label>
-                <input type="text" id="isbn-edit" style="width: 100%; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
               </div>
             </div>
           </div>
@@ -358,10 +358,12 @@
         <input type="hidden" id="title">
         <input type="hidden" id="author">
         <input type="hidden" id="release_date">
+        <input type="hidden" id="isbn-edit">
         <input type="hidden" id="cover_url">
         <input type="hidden" id="google_books_id">
         <input type="hidden" id="notes">
         <input type="hidden" id="library_status">
+        <input type="hidden" id="all_isbns">
 
         <button type="submit" class="primary">Add to List</button>
         <button type="button" id="back-btn" class="secondary">← Back to Search</button>
@@ -451,8 +453,20 @@
                 ? formatDate(book.last_checked_at)
                 : 'Never';
 
+              // Make row clickable if book is available in Overdrive
+              const isClickable = book.overdrive_id &&
+                                 (book.library_status === 'available_to_hold' ||
+                                  book.library_status === 'available_to_checkout');
+              const overdriveUrl = book.overdrive_id
+                ? `https://sfpl.overdrive.com/media/${book.overdrive_id}`
+                : null;
+              const rowClass = isClickable ? 'clickable-row' : '';
+              const rowClick = isClickable
+                ? `onclick="window.open('${overdriveUrl}', '_blank')" style="cursor: pointer;"`
+                : '';
+
               return `
-                <tr>
+                <tr class="${rowClass}" ${rowClick}>
                   <td><strong>${escapeHtml(book.title)}</strong></td>
                   <td>${escapeHtml(book.author)}</td>
                   <td>
@@ -466,7 +480,7 @@
                   </td>
                   <td class="days-label">${lastChecked}</td>
                   <td>
-                    <button onclick="deleteBook('${book.id}', '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
+                    <button onclick="event.stopPropagation(); deleteBook('${book.id}', '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
                             style="background: none; border: none; color: #999; cursor: pointer; font-size: 18px; padding: 4px 8px;"
                             title="Remove book">×</button>
                   </td>
@@ -579,56 +593,36 @@
             return;
           }
 
-          // Filter to only show books with ISBNs (needed for Overdrive matching)
-          // This also tends to filter out print-only editions
+          // Filter to only show books with ISBNs and with cover images
           const booksWithISBN = data.items.filter(item => {
             const info = item.volumeInfo;
-            return info.industryIdentifiers?.some(id =>
+            const hasISBN = info.industryIdentifiers?.some(id =>
               id.type === 'ISBN_13' || id.type === 'ISBN_10'
             );
-          }).slice(0, 8);
+            const hasCover = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail;
+            return hasISBN && hasCover;
+          });
 
           if (booksWithISBN.length === 0) {
             autocompleteContainer.style.display = 'none';
             return;
           }
 
-          // Check Overdrive to see which results are available at SFPL
-          let overdriveTitles = new Set();
-          try {
-            const overdriveResponse = await fetch(`https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${searchQuery}`);
-            if (overdriveResponse.ok) {
-              const overdriveData = await overdriveResponse.json();
-              if (overdriveData.items) {
-                console.log('Overdrive returned', overdriveData.items.length, 'results for query:', query);
-                overdriveData.items.forEach(item => {
-                  const normalized = normalizeTitle(item.title);
-                  overdriveTitles.add(normalized);
-                  console.log('  -', item.title, '→', normalized);
-                });
-              }
+          // Deduplicate by normalized title - keep first occurrence (usually most relevant)
+          const seenTitles = new Set();
+          const uniqueBooks = [];
+
+          for (const book of booksWithISBN) {
+            const normalized = normalizeTitle(book.volumeInfo.title);
+            if (!seenTitles.has(normalized)) {
+              seenTitles.add(normalized);
+              uniqueBooks.push(book);
+              if (uniqueBooks.length >= 8) break; // Limit to 8 results
             }
-          } catch (error) {
-            console.log('Could not check Overdrive:', error);
           }
 
-          // Sort books with Overdrive matches first
-          const sortedBooks = booksWithISBN.sort((a, b) => {
-            const aInOverdrive = overdriveTitles.has(normalizeTitle(a.volumeInfo.title));
-            const bInOverdrive = overdriveTitles.has(normalizeTitle(b.volumeInfo.title));
-            if (aInOverdrive && !bInOverdrive) return -1;
-            if (!aInOverdrive && bInOverdrive) return 1;
-            return 0;
-          });
-
-          console.log('Google Books results:', sortedBooks.map(b => ({
-            title: b.volumeInfo.title,
-            normalized: normalizeTitle(b.volumeInfo.title),
-            inOverdrive: overdriveTitles.has(normalizeTitle(b.volumeInfo.title))
-          })));
-
           // Show suggestions
-          renderAutocompleteResults(sortedBooks, autocompleteContainer, overdriveTitles);
+          renderAutocompleteResults(uniqueBooks, autocompleteContainer);
         } catch (error) {
           console.error('Autocomplete error:', error);
           autocompleteContainer.style.display = 'none';
@@ -658,47 +652,36 @@
             return;
           }
 
-          // Filter to only show books with ISBNs (needed for Overdrive matching)
+          // Filter to only show books with ISBNs and with cover images
           const booksWithISBN = data.items.filter(item => {
             const info = item.volumeInfo;
-            return info.industryIdentifiers?.some(id =>
+            const hasISBN = info.industryIdentifiers?.some(id =>
               id.type === 'ISBN_13' || id.type === 'ISBN_10'
             );
-          }).slice(0, 8);
+            const hasCover = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail;
+            return hasISBN && hasCover;
+          });
 
           if (booksWithISBN.length === 0) {
             autocompleteContainer.style.display = 'none';
             return;
           }
 
-          // Check Overdrive to see which results are available at SFPL
-          let overdriveTitles = new Set();
-          try {
-            const overdriveResponse = await fetch(`https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${searchQuery}`);
-            if (overdriveResponse.ok) {
-              const overdriveData = await overdriveResponse.json();
-              if (overdriveData.items) {
-                overdriveData.items.forEach(item => {
-                  const normalized = normalizeTitle(item.title);
-                  overdriveTitles.add(normalized);
-                });
-              }
+          // Deduplicate by normalized title - keep first occurrence (usually most relevant)
+          const seenTitles = new Set();
+          const uniqueBooks = [];
+
+          for (const book of booksWithISBN) {
+            const normalized = normalizeTitle(book.volumeInfo.title);
+            if (!seenTitles.has(normalized)) {
+              seenTitles.add(normalized);
+              uniqueBooks.push(book);
+              if (uniqueBooks.length >= 8) break; // Limit to 8 results
             }
-          } catch (error) {
-            console.log('Could not check Overdrive:', error);
           }
 
-          // Sort books with Overdrive matches first
-          const sortedBooks = booksWithISBN.sort((a, b) => {
-            const aInOverdrive = overdriveTitles.has(normalizeTitle(a.volumeInfo.title));
-            const bInOverdrive = overdriveTitles.has(normalizeTitle(b.volumeInfo.title));
-            if (aInOverdrive && !bInOverdrive) return -1;
-            if (!aInOverdrive && bInOverdrive) return 1;
-            return 0;
-          });
-
           // Show suggestions
-          renderAutocompleteResults(sortedBooks, autocompleteContainer, overdriveTitles);
+          renderAutocompleteResults(uniqueBooks, autocompleteContainer);
         } catch (error) {
           console.error('Autocomplete error:', error);
           autocompleteContainer.style.display = 'none';
@@ -707,7 +690,7 @@
     }
 
     // Render autocomplete suggestions
-    function renderAutocompleteResults(items, container, overdriveTitles = new Set()) {
+    function renderAutocompleteResults(items, container) {
       // Clear previous items and initialize
       window.autocompleteItems = [];
 
@@ -715,17 +698,13 @@
       container.innerHTML = items.map((item, index) => {
         const info = item.volumeInfo;
         const authors = info.authors ? info.authors.join(', ') : 'Unknown Author';
-        const inOverdrive = overdriveTitles.has(normalizeTitle(info.title));
 
         // Store the item for onclick access
         window.autocompleteItems[index] = item;
 
         return `
           <div class="autocomplete-item" onclick='selectBookFromAutocomplete(${index})'>
-            <div class="autocomplete-title">
-              ${escapeHtml(info.title)}
-              ${inOverdrive ? '<span style="margin-left: 8px; padding: 2px 6px; background: #FF9800; color: white; border-radius: 3px; font-size: 11px; font-weight: 600;">IN OVERDRIVE</span>' : ''}
-            </div>
+            <div class="autocomplete-title">${escapeHtml(info.title)}</div>
             <div class="autocomplete-author">${escapeHtml(authors)}</div>
           </div>
         `;
@@ -735,7 +714,7 @@
     }
 
     // Select book from autocomplete and go directly to confirm step
-    window.selectBookFromAutocomplete = function(index) {
+    window.selectBookFromAutocomplete = async function(index) {
       const bookData = window.autocompleteItems[index];
       if (!bookData) {
         console.error('No book data found for index', index);
@@ -748,6 +727,53 @@
                   info.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier || '';
       const coverUrl = info.imageLinks?.thumbnail?.replace('http:', 'https:') ||
                       info.imageLinks?.smallThumbnail?.replace('http:', 'https:') || '';
+
+      // Fetch all editions of this book to collect all ISBNs
+      console.log('Fetching all editions for:', info.title);
+      const allIsbns = new Set();
+
+      // Add ISBNs from the selected book
+      if (info.industryIdentifiers) {
+        info.industryIdentifiers.forEach(id => {
+          if (id.type === 'ISBN_13' || id.type === 'ISBN_10') {
+            allIsbns.add(id.identifier);
+          }
+        });
+      }
+
+      try {
+        // Search for all editions by title and author
+        const searchQuery = encodeURIComponent(`intitle:"${info.title}" ${authors ? 'inauthor:' + authors.split(',')[0] : ''}`);
+        const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${searchQuery}&maxResults=40`);
+        const data = await response.json();
+
+        if (data.items) {
+          const normalizedTargetTitle = normalizeTitle(info.title);
+
+          // Filter to books with matching normalized title
+          const matchingEditions = data.items.filter(item => {
+            const editionTitle = item.volumeInfo?.title || '';
+            return normalizeTitle(editionTitle) === normalizedTargetTitle;
+          });
+
+          console.log(`Found ${matchingEditions.length} matching editions`);
+
+          // Collect all ISBNs from all editions
+          matchingEditions.forEach(edition => {
+            const identifiers = edition.volumeInfo?.industryIdentifiers || [];
+            identifiers.forEach(id => {
+              if (id.type === 'ISBN_13' || id.type === 'ISBN_10') {
+                allIsbns.add(id.identifier);
+              }
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching all editions:', error);
+      }
+
+      const allIsbnsArray = Array.from(allIsbns);
+      console.log(`Collected ${allIsbnsArray.length} unique ISBNs:`, allIsbnsArray);
 
       // Normalize date to YYYY-MM-DD
       let normalizedDate = '';
@@ -769,6 +795,7 @@
       document.getElementById('cover_url').value = coverUrl;
       document.getElementById('google_books_id').value = bookData.id;
       document.getElementById('notes').value = ''; // Always empty now
+      document.getElementById('all_isbns').value = JSON.stringify(allIsbnsArray);
 
       // Update display fields
       document.getElementById('confirm-title').textContent = info.title || '';
@@ -1015,12 +1042,24 @@
     async function handleAddBook(e) {
       e.preventDefault();
 
+      // Parse all_isbns from JSON
+      let allIsbnsArray = [];
+      try {
+        const allIsbnsValue = document.getElementById('all_isbns').value;
+        if (allIsbnsValue) {
+          allIsbnsArray = JSON.parse(allIsbnsValue);
+        }
+      } catch (error) {
+        console.error('Error parsing all_isbns:', error);
+      }
+
       const formData = {
         title: document.getElementById('title').value.trim(),
         author: document.getElementById('author').value.trim(),
         release_date: document.getElementById('release_date').value,
         library_status: document.getElementById('library_status').value,
         isbn: document.getElementById('isbn-edit').value.trim() || null,
+        all_isbns: allIsbnsArray.length > 0 ? allIsbnsArray : null,
         cover_url: document.getElementById('cover_url').value.trim() || null,
         google_books_id: document.getElementById('google_books_id').value.trim() || null,
         notes: null
@@ -1040,19 +1079,20 @@
         // Check library status if book is released
         if (formData.library_status !== 'not_released') {
           showMessage(`Checking library availability...`, 'info');
-          const libraryStatus = await checkSingleBook(addedBook);
+          const result = await checkSingleBook(addedBook);
 
-          if (libraryStatus) {
-            // Update the book with library status
+          if (result) {
+            // Update the book with library status and overdrive_id
             await supabaseAdmin
               .from('books')
               .update({
-                library_status: libraryStatus,
+                library_status: result.status,
+                overdrive_id: result.overdrive_id,
                 last_checked_at: new Date().toISOString()
               })
               .eq('id', addedBook.id);
 
-            showMessage(`✓ Library status updated: ${formatStatus(libraryStatus)}`, 'success');
+            showMessage(`✓ Library status updated: ${formatStatus(result.status)}`, 'success');
           }
         }
 
@@ -1092,7 +1132,7 @@
     // Check single book's library status via Overdrive
     async function checkSingleBook(book) {
       try {
-        // Search by title (more reliable than ISBN for matching across editions)
+        // Search by title to find book in Overdrive
         const query = encodeURIComponent(book.title);
         const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${query}`;
         const searchResponse = await fetch(searchUrl);
@@ -1108,27 +1148,55 @@
           return 'not_available'; // Not in Overdrive catalog
         }
 
-        // Find best match (exact title match, or first result)
+        // Find best match using multiple strategies:
+        // 1. If we have all_isbns, try to match by ISBN
+        // 2. Fall back to normalized title matching
         let overdriveBook = searchData.items[0];
-        const exactMatch = searchData.items.find(item =>
-          item.title.toLowerCase() === book.title.toLowerCase()
-        );
-        if (exactMatch) {
-          overdriveBook = exactMatch;
+
+        if (book.all_isbns && book.all_isbns.length > 0) {
+          // Try to find a match by ISBN
+          const isbnMatch = searchData.items.find(item => {
+            const overdriveIsbns = item.formats?.map(f => f.isbn).filter(Boolean) || [];
+            return book.all_isbns.some(ourIsbn =>
+              overdriveIsbns.some(odIsbn => odIsbn === ourIsbn)
+            );
+          });
+
+          if (isbnMatch) {
+            console.log(`ISBN match found for ${book.title}`);
+            overdriveBook = isbnMatch;
+          } else {
+            console.log(`No ISBN match for ${book.title}, using title match`);
+          }
+        }
+
+        // If no ISBN match, use normalized title matching
+        if (!overdriveBook || overdriveBook === searchData.items[0]) {
+          const normalizedBookTitle = normalizeTitle(book.title);
+          const titleMatch = searchData.items.find(item =>
+            normalizeTitle(item.title) === normalizedBookTitle
+          );
+          if (titleMatch) {
+            overdriveBook = titleMatch;
+          }
         }
 
         const isAvailable = overdriveBook.isAvailable === true;
         const availableCopies = overdriveBook.availableCopies || 0;
         const isHoldable = overdriveBook.isHoldable === true;
+        const overdriveId = overdriveBook.id || null;
 
         // Determine library status
+        let status;
         if (isAvailable && availableCopies > 0) {
-          return 'available_to_checkout';
+          status = 'available_to_checkout';
         } else if (isHoldable) {
-          return 'available_to_hold';
+          status = 'available_to_hold';
         } else {
-          return 'not_available';
+          status = 'not_available';
         }
+
+        return { status, overdrive_id: overdriveId };
       } catch (error) {
         console.error(`Error checking ${book.title}:`, error);
         return null;
