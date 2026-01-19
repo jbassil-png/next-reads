@@ -16,6 +16,89 @@ function normalizeTitle(title: string): string {
     .trim()
 }
 
+// Format status for display
+function formatStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    'not_released': 'Not Released',
+    'not_available': 'Not Available',
+    'available_to_hold': 'Available to Hold',
+    'on_hold': 'On Hold',
+    'available_to_checkout': 'Borrow',
+    'checked_out': 'Checked Out'
+  }
+  return statusMap[status] || status
+}
+
+// Send email notification for status change
+async function sendStatusChangeEmail(
+  book: any,
+  oldStatus: string,
+  newStatus: string,
+  resendApiKey: string,
+  userEmail: string
+): Promise<void> {
+  try {
+    const emailHtml = `
+      <div style="font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #0a0a0a; margin-bottom: 24px;">📚 Library Status Update</h1>
+
+        <div style="background: #fafafa; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+          <h2 style="color: #0a0a0a; font-size: 18px; margin: 0 0 8px 0;">${book.title}</h2>
+          <p style="color: #737373; margin: 0 0 16px 0;">by ${book.author}</p>
+
+          <div style="background: white; border-radius: 6px; padding: 16px;">
+            <p style="color: #737373; margin: 0 0 8px 0; font-size: 14px;">Status changed:</p>
+            <p style="color: #0a0a0a; margin: 0; font-size: 16px;">
+              <span style="text-decoration: line-through; color: #737373;">${formatStatus(oldStatus)}</span>
+              →
+              <strong>${formatStatus(newStatus)}</strong>
+            </p>
+          </div>
+        </div>
+
+        ${book.overdrive_id && (newStatus === 'available_to_hold' || newStatus === 'available_to_checkout') ? `
+          <a href="https://sfpl.overdrive.com/media/${book.overdrive_id}"
+             style="display: inline-block; background: #0a0a0a; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 500; margin-bottom: 24px;">
+            ${newStatus === 'available_to_checkout' ? 'Borrow' : 'Place Hold'} on Overdrive →
+          </a>
+        ` : ''}
+
+        <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e5e5e5;">
+          <a href="https://jbassil-png.github.io/next-reads/"
+             style="color: #0a0a0a; text-decoration: none; font-weight: 500;">
+            View Full Dashboard →
+          </a>
+        </div>
+      </div>
+    `
+
+    const resendResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${resendApiKey}`
+      },
+      body: JSON.stringify({
+        from: 'Next Reads <onboarding@resend.dev>',
+        to: userEmail,
+        subject: `📚 "${book.title}" is now ${formatStatus(newStatus)}`,
+        html: emailHtml
+      })
+    })
+
+    if (!resendResponse.ok) {
+      const error = await resendResponse.text()
+      console.error(`Failed to send email for ${book.title}:`, error)
+    } else {
+      const resendData = await resendResponse.json()
+      console.log(`Email sent for ${book.title}:`, resendData.id)
+    }
+  } catch (error) {
+    console.error(`Error sending email for ${book.title}:`, error)
+    // Don't throw - we don't want email failures to break the main function
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -27,6 +110,10 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
+
+    // Get email notification secrets
+    const resendApiKey = Deno.env.get('RESEND_API_KEY')
+    const userEmail = Deno.env.get('USER_EMAIL')
 
     // Get all books that have been released (to check library status)
     const today = new Date().toISOString().split('T')[0]
@@ -121,6 +208,12 @@ serve(async (req) => {
               results.push({ title: book.title, status: 'update_failed', error: updateError.message })
             } else {
               console.log(`Updated ${book.title}: ${book.library_status} → not_available (no match)`)
+
+              // Send email notification if configured
+              if (resendApiKey && userEmail) {
+                await sendStatusChangeEmail(book, book.library_status, 'not_available', resendApiKey, userEmail)
+              }
+
               results.push({
                 title: book.title,
                 oldStatus: book.library_status,
@@ -167,6 +260,12 @@ serve(async (req) => {
             results.push({ title: book.title, status: 'update_failed', error: updateError.message })
           } else {
             console.log(`Updated ${book.title}: ${book.library_status} → ${newStatus}`)
+
+            // Send email notification if configured
+            if (resendApiKey && userEmail) {
+              await sendStatusChangeEmail(book, book.library_status, newStatus, resendApiKey, userEmail)
+            }
+
             results.push({
               title: book.title,
               oldStatus: book.library_status,
