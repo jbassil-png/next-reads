@@ -4,71 +4,104 @@
   <meta charset="utf-8">
   <title>Next Reads</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
+    :root {
+      --radius: 0.625rem;
+      --background: oklch(1 0 0);
+      --foreground: oklch(0.145 0 0);
+      --card: oklch(1 0 0);
+      --card-foreground: oklch(0.145 0 0);
+      --popover: oklch(1 0 0);
+      --popover-foreground: oklch(0.145 0 0);
+      --primary: oklch(0.205 0 0);
+      --primary-foreground: oklch(0.985 0 0);
+      --secondary: oklch(0.97 0 0);
+      --secondary-foreground: oklch(0.205 0 0);
+      --muted: oklch(0.97 0 0);
+      --muted-foreground: oklch(0.556 0 0);
+      --accent: oklch(0.97 0 0);
+      --accent-foreground: oklch(0.205 0 0);
+      --destructive: oklch(0.577 0.245 27.325);
+      --border: oklch(0.922 0 0);
+      --input: oklch(0.922 0 0);
+      --ring: oklch(0.708 0 0);
+    }
+
     body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       margin: 24px;
       max-width: 1200px;
       margin-left: auto;
       margin-right: auto;
+      background: var(--background);
+      color: var(--foreground);
     }
-    h1 { margin: 0 0 6px; }
-    p { margin: 0 0 18px; color: #444; }
+    h1 {
+      margin: 0 0 6px;
+      color: var(--foreground);
+    }
+    p {
+      margin: 0 0 18px;
+      color: var(--muted-foreground);
+    }
     .header { margin-bottom: 32px; }
     .section { margin-bottom: 40px; }
     .section h2 {
       margin: 0 0 12px;
       font-size: 18px;
-      color: #222;
+      color: var(--foreground);
     }
     .section-description {
-      color: #666;
+      color: var(--muted-foreground);
       font-size: 14px;
       margin-bottom: 16px;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      background: white;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       overflow: hidden;
     }
     thead {
-      background: #f8f8f8;
+      background: var(--muted);
     }
     th {
       text-align: left;
       padding: 12px 16px;
       font-size: 13px;
       font-weight: 600;
-      color: #555;
-      border-bottom: 2px solid #e0e0e0;
+      color: var(--muted-foreground);
+      border-bottom: 2px solid var(--border);
     }
     td {
       padding: 12px 16px;
       font-size: 14px;
-      border-bottom: 1px solid #f0f0f0;
+      border-bottom: 1px solid var(--border);
     }
     tbody tr:last-child td {
       border-bottom: none;
     }
     tbody tr:hover {
-      background: #fafafa;
+      background: var(--muted);
     }
     .clickable-row:hover {
-      background: #e3f2fd !important;
+      background: var(--accent) !important;
       transition: background 0.2s;
     }
     .empty-state {
       padding: 48px 24px;
       text-align: center;
-      color: #999;
+      color: var(--muted-foreground);
       font-size: 14px;
-      background: #fafafa;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
+      background: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
     }
     .status-badge {
       display: inline-block;
@@ -83,30 +116,30 @@
     .status-on_hold { background: #f3e5f5; color: #6a1b9a; }
     .status-available_to_checkout { background: #c8e6c9; color: #1b5e20; }
     .days-label {
-      color: #666;
+      color: var(--muted-foreground);
       font-size: 13px;
     }
     .loading {
       text-align: center;
       padding: 48px;
-      color: #999;
+      color: var(--muted-foreground);
     }
     .error {
       padding: 16px;
-      background: #ffebee;
-      color: #c62828;
-      border-radius: 8px;
+      background: var(--destructive);
+      color: var(--primary-foreground);
+      border-radius: var(--radius);
       margin-bottom: 24px;
     }
     .admin-link {
       margin-top: 24px;
       padding: 12px;
-      background: #f5f5f5;
-      border-radius: 8px;
+      background: var(--muted);
+      border-radius: var(--radius);
       text-align: center;
     }
     .admin-link a {
-      color: #1976d2;
+      color: var(--primary);
       text-decoration: none;
       font-weight: 500;
     }
@@ -114,16 +147,16 @@
       text-decoration: underline;
     }
     .add-book-section {
-      background: white;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       padding: 24px;
       margin-bottom: 32px;
     }
     .add-book-section h2 {
       margin: 0 0 16px;
       font-size: 18px;
-      color: #222;
+      color: var(--foreground);
     }
     .form-grid {
       display: grid;
@@ -142,16 +175,24 @@
     .form-group label {
       font-size: 13px;
       font-weight: 500;
-      color: #555;
+      color: var(--foreground);
     }
     .form-group input,
     .form-group select,
     .form-group textarea {
       padding: 10px 12px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
+      border: 1px solid var(--input);
+      border-radius: var(--radius);
       font-size: 14px;
       font-family: inherit;
+      background: var(--background);
+      color: var(--foreground);
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--ring);
     }
     .form-group textarea {
       resize: vertical;
@@ -160,27 +201,27 @@
     button {
       padding: 10px 20px;
       border: none;
-      border-radius: 6px;
+      border-radius: var(--radius);
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
       transition: background 0.2s;
     }
     button.primary {
-      background: #1976d2;
-      color: white;
+      background: var(--primary);
+      color: var(--primary-foreground);
     }
     button.primary:hover {
-      background: #1565c0;
+      opacity: 0.9;
     }
     button.secondary {
-      background: #f5f5f5;
-      color: #555;
-      border: 1px solid #ddd;
+      background: var(--secondary);
+      color: var(--secondary-foreground);
+      border: 1px solid var(--border);
       margin-left: 8px;
     }
     button.secondary:hover {
-      background: #e0e0e0;
+      background: var(--accent);
     }
     button:disabled {
       opacity: 0.5;
@@ -188,7 +229,7 @@
     }
     .message {
       padding: 12px 16px;
-      border-radius: 6px;
+      border-radius: var(--radius);
       margin-bottom: 16px;
     }
     .message.success {
@@ -205,25 +246,25 @@
       grid-template-columns: 80px 1fr auto;
       gap: 16px;
       padding: 12px;
-      border: 2px solid #e0e0e0;
-      border-radius: 6px;
-      background: white;
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
       transition: all 0.2s;
     }
     .book-result:hover {
-      border-color: #1976d2;
-      box-shadow: 0 2px 8px rgba(25, 118, 210, 0.1);
+      border-color: var(--ring);
+      box-shadow: 0 2px 8px oklch(0.708 0 0 / 0.1);
     }
     .book-result.selected {
-      border-color: #1976d2;
-      background: #f0f7ff;
+      border-color: var(--ring);
+      background: var(--accent);
     }
     .book-cover {
       width: 80px;
       height: 120px;
       object-fit: cover;
       border-radius: 4px;
-      background: #f5f5f5;
+      background: var(--muted);
     }
     .book-info {
       display: flex;
@@ -233,15 +274,15 @@
     .book-title {
       font-weight: 600;
       font-size: 15px;
-      color: #222;
+      color: var(--foreground);
     }
     .book-author {
-      color: #666;
+      color: var(--muted-foreground);
       font-size: 14px;
     }
     .book-meta {
       font-size: 13px;
-      color: #888;
+      color: var(--muted-foreground);
     }
     .book-actions {
       display: flex;
