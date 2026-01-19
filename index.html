@@ -348,8 +348,8 @@
                 <span id="confirm-date"></span>
               </div>
               <div>
-                <span style="color: #666;">ISBN:</span>
-                <span id="confirm-isbn"></span>
+                <label for="isbn-edit" style="color: #666; display: block; margin-bottom: 4px;">ISBN (verify/edit if needed):</label>
+                <input type="text" id="isbn-edit" style="width: 100%; padding: 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
               </div>
             </div>
           </div>
@@ -358,7 +358,6 @@
         <input type="hidden" id="title">
         <input type="hidden" id="author">
         <input type="hidden" id="release_date">
-        <input type="hidden" id="isbn">
         <input type="hidden" id="cover_url">
         <input type="hidden" id="google_books_id">
         <input type="hidden" id="notes">
@@ -706,7 +705,7 @@
       document.getElementById('title').value = info.title || '';
       document.getElementById('author').value = authors;
       document.getElementById('release_date').value = normalizedDate;
-      document.getElementById('isbn').value = isbn;
+      document.getElementById('isbn-edit').value = isbn;
       document.getElementById('cover_url').value = coverUrl;
       document.getElementById('google_books_id').value = bookData.id;
       document.getElementById('notes').value = ''; // Always empty now
@@ -830,9 +829,13 @@
           const info = item.volumeInfo;
           const authors = info.authors ? info.authors.join(', ') : 'Unknown Author';
           const publishedDate = info.publishedDate || 'Unknown';
-          const isbn = info.industryIdentifiers?.find(id => id.type === 'ISBN_13')?.identifier ||
-                      info.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier ||
-                      'No ISBN';
+
+          // Show ALL ISBNs
+          const allISBNs = info.industryIdentifiers?.map(id => `${id.identifier} (${id.type})`).join(', ') || 'No ISBN';
+          const primaryISBN = info.industryIdentifiers?.find(id => id.type === 'ISBN_13')?.identifier ||
+                              info.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier ||
+                              'No ISBN';
+
           const thumbnail = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || '';
           const isEbook = item.saleInfo?.isEbook || item.accessInfo?.epub?.isAvailable || item.accessInfo?.pdf?.isAvailable;
 
@@ -846,7 +849,8 @@
                 </div>
                 <div class="book-author">${escapeHtml(authors)}</div>
                 <div class="book-meta">
-                  Published: ${escapeHtml(publishedDate)} • ISBN: ${escapeHtml(isbn)}
+                  Published: ${escapeHtml(publishedDate)}<br>
+                  ISBNs: ${escapeHtml(allISBNs)}
                 </div>
               </div>
               <div class="book-actions">
