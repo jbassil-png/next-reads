@@ -946,7 +946,7 @@
         author: document.getElementById('author').value.trim(),
         release_date: document.getElementById('release_date').value,
         library_status: document.getElementById('library_status').value,
-        isbn: document.getElementById('isbn').value.trim() || null,
+        isbn: document.getElementById('isbn-edit').value.trim() || null,
         cover_url: document.getElementById('cover_url').value.trim() || null,
         google_books_id: document.getElementById('google_books_id').value.trim() || null,
         notes: null
@@ -963,8 +963,8 @@
         const addedBook = data[0];
         showMessage(`✓ Added "${formData.title}" successfully!`, 'success');
 
-        // Check library status if book has ISBN and is released
-        if (addedBook.isbn && formData.library_status !== 'not_released') {
+        // Check library status if book is released
+        if (formData.library_status !== 'not_released') {
           showMessage(`Checking library availability...`, 'info');
           const libraryStatus = await checkSingleBook(addedBook);
 
@@ -1017,13 +1017,10 @@
 
     // Check single book's library status via Overdrive
     async function checkSingleBook(book) {
-      if (!book.isbn) {
-        return null; // Can't check without ISBN
-      }
-
       try {
-        // Search by ISBN (now that we filter to ebooks only, ISBN should match)
-        const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${book.isbn}`;
+        // Search by title (more reliable than ISBN for matching across editions)
+        const query = encodeURIComponent(book.title);
+        const searchUrl = `https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${query}`;
         const searchResponse = await fetch(searchUrl);
 
         if (!searchResponse.ok) {
@@ -1037,8 +1034,14 @@
           return 'not_available'; // Not in Overdrive catalog
         }
 
-        // Use first result (should be exact match by ISBN)
-        const overdriveBook = searchData.items[0];
+        // Find best match (exact title match, or first result)
+        let overdriveBook = searchData.items[0];
+        const exactMatch = searchData.items.find(item =>
+          item.title.toLowerCase() === book.title.toLowerCase()
+        );
+        if (exactMatch) {
+          overdriveBook = exactMatch;
+        }
 
         const isAvailable = overdriveBook.isAvailable === true;
         const availableCopies = overdriveBook.availableCopies || 0;
