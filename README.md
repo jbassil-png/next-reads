@@ -34,6 +34,12 @@ Track book releases you're anticipating and automatically monitor their availabi
   - Clickable rows show a blue link-out icon (↗) next to the status badge
   - Direct links to place holds or check out books
 
+- **Email notifications:**
+  - Weekly summary emails (Sunday midnight PST) with upcoming releases and library updates
+  - Real-time emails when any book changes status (e.g., becomes available to borrow)
+  - Clean HTML emails with direct Overdrive links
+  - Powered by Resend API
+
 - **Public sharing:**
   - Your dashboard is publicly viewable (read-only)
   - Authenticated admin access for adding/managing books
@@ -46,7 +52,7 @@ Track book releases you're anticipating and automatically monitor their availabi
 **Current Stack:**
 - **Frontend:** Vanilla HTML/CSS/JavaScript (single-page app)
 - **Backend:** Supabase (PostgreSQL + Edge Functions)
-- **APIs:** Google Books API (search), Overdrive Thunder API (availability)
+- **APIs:** Google Books API (search), Overdrive Thunder API (availability), Resend (email)
 - **Authentication:** Supabase Auth (admin-only, public read access)
 - **Hosting:** GitHub Pages (frontend) + Supabase (data/functions)
 
@@ -57,8 +63,12 @@ Track book releases you're anticipating and automatically monitor their availabi
 
 **Scheduled Tasks:**
 - Daily Overdrive checks at 8 AM via pg_cron
-- Checks all released books with status: not_available, available_to_hold, or on_hold
-- Updates status and Overdrive links automatically
+  - Checks all released books with status: not_available, available_to_hold, or on_hold
+  - Updates status and Overdrive links automatically
+  - Sends email when status changes
+- Weekly summary email (Sunday midnight PST)
+  - Summarizes books releasing in the coming week
+  - Shows library status changes from the previous week
 
 See [supabase/migrations/](supabase/migrations/) for database schema.
 
@@ -82,16 +92,55 @@ See [supabase/migrations/](supabase/migrations/) for database schema.
 
 See [supabase/README.md](supabase/README.md) for detailed instructions.
 
-### 2. Deploy Edge Function
+### 2. Deploy Edge Functions
 
-The Overdrive checking Edge Function must be deployed:
+Two Edge Functions must be deployed:
 
+**check-overdrive** (Daily library status checks):
 1. Go to Supabase Dashboard → Edge Functions
 2. Create new function named `check-overdrive`
 3. Copy code from `supabase/functions/check-overdrive/index.ts`
 4. Deploy the function
 
-### 3. Set Up Scheduled Checks
+**send-weekly-summary** (Weekly email summaries):
+1. Create new function named `send-weekly-summary`
+2. Copy code from `supabase/functions/send-weekly-summary/index.ts`
+3. Deploy the function
+
+### 3. Set Up Email Notifications (Optional)
+
+To enable email notifications:
+
+1. **Sign up for Resend:**
+   - Go to [resend.com](https://resend.com) and create a free account (3,000 emails/month)
+   - Get your API key from the dashboard
+
+2. **Add Supabase Secrets:**
+   - Go to Supabase Dashboard → Settings → Edge Functions → Secrets
+   - Add two secrets:
+     ```
+     RESEND_API_KEY=re_your_api_key_here
+     USER_EMAIL=your@email.com
+     ```
+
+3. **Set up weekly email schedule:**
+   - Go to SQL Editor and run:
+   ```sql
+   SELECT cron.schedule(
+     'weekly-email-summary',
+     '0 8 * * 1',  -- Every Monday at 8 AM UTC (Sunday midnight PST)
+     $$
+     SELECT net.http_post(
+       url:='https://YOUR-PROJECT.supabase.co/functions/v1/send-weekly-summary',
+       headers:='{"Content-Type": "application/json", "Authorization": "Bearer YOUR-ANON-KEY"}'::jsonb
+     ) AS request_id;
+     $$
+   );
+   ```
+
+**Note:** Real-time status change emails are sent automatically by the daily `check-overdrive` function when it detects a book status change.
+
+### 4. Set Up Scheduled Checks
 
 Create a daily cron job in Supabase SQL Editor:
 
@@ -110,7 +159,7 @@ SELECT cron.schedule(
 
 Replace `YOUR-PROJECT` and `YOUR-SERVICE-ROLE-KEY` with your values.
 
-### 4. Configure Frontend
+### 5. Configure Frontend
 
 1. Copy `config.example.js` to `config.js`:
    ```bash
@@ -134,7 +183,7 @@ Replace `YOUR-PROJECT` and `YOUR-SERVICE-ROLE-KEY` with your values.
 
 **Note:** `config.js` is gitignored - never commit your credentials!
 
-### 5. Add Your First Books
+### 6. Add Your First Books
 
 1. Open the deployed dashboard
 2. Authenticate (if using Supabase Auth)
@@ -199,7 +248,7 @@ Replace `YOUR-PROJECT` and `YOUR-SERVICE-ROLE-KEY` with your values.
 - [x] Clickable rows to Overdrive with link-out icon
 
 **Phase 3: Polish & Features** 🚧
-- [ ] Email notifications when books become available (next up!)
+- [x] Email notifications when books become available
 - [ ] Series tracking
 - [ ] Mobile-optimized design
 - [ ] Reading history / archive
@@ -220,8 +269,10 @@ next-reads/
     │   ├── 001_initial_schema.sql       # Core tables and RLS
     │   └── 002_add_all_isbns.sql        # ISBN array field
     └── functions/
-        └── check-overdrive/
-            └── index.ts       # Daily availability checking
+        ├── check-overdrive/
+        │   └── index.ts       # Daily availability checking + real-time emails
+        └── send-weekly-summary/
+            └── index.ts       # Weekly email summaries
 ```
 
 ---
