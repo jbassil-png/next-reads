@@ -101,6 +101,7 @@ serve(async (req) => {
         const isAvailable = overdriveBook.isAvailable === true
         const availableCopies = overdriveBook.availableCopies || 0
         const isHoldable = overdriveBook.isHoldable === true
+        const overdriveId = overdriveBook.id || null
 
         // Determine new library status
         let newStatus = book.library_status
@@ -119,6 +120,7 @@ serve(async (req) => {
             .from('books')
             .update({
               library_status: newStatus,
+              overdrive_id: overdriveId,
               last_checked_at: new Date().toISOString()
             })
             .eq('id', book.id)
@@ -137,10 +139,13 @@ serve(async (req) => {
             })
           }
         } else {
-          // Still update last_checked_at even if status unchanged
+          // Still update last_checked_at and overdrive_id even if status unchanged
           await supabase
             .from('books')
-            .update({ last_checked_at: new Date().toISOString() })
+            .update({
+              last_checked_at: new Date().toISOString(),
+              overdrive_id: overdriveId
+            })
             .eq('id', book.id)
 
           results.push({

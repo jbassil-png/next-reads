@@ -57,6 +57,10 @@
     tbody tr:hover {
       background: #fafafa;
     }
+    .clickable-row:hover {
+      background: #e3f2fd !important;
+      transition: background 0.2s;
+    }
     .empty-state {
       padding: 48px 24px;
       text-align: center;
@@ -449,8 +453,20 @@
                 ? formatDate(book.last_checked_at)
                 : 'Never';
 
+              // Make row clickable if book is available in Overdrive
+              const isClickable = book.overdrive_id &&
+                                 (book.library_status === 'available_to_hold' ||
+                                  book.library_status === 'available_to_checkout');
+              const overdriveUrl = book.overdrive_id
+                ? `https://sfpl.overdrive.com/media/${book.overdrive_id}`
+                : null;
+              const rowClass = isClickable ? 'clickable-row' : '';
+              const rowClick = isClickable
+                ? `onclick="window.open('${overdriveUrl}', '_blank')" style="cursor: pointer;"`
+                : '';
+
               return `
-                <tr>
+                <tr class="${rowClass}" ${rowClick}>
                   <td><strong>${escapeHtml(book.title)}</strong></td>
                   <td>${escapeHtml(book.author)}</td>
                   <td>
@@ -464,7 +480,7 @@
                   </td>
                   <td class="days-label">${lastChecked}</td>
                   <td>
-                    <button onclick="deleteBook('${book.id}', '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
+                    <button onclick="event.stopPropagation(); deleteBook('${book.id}', '${escapeHtml(book.title.replace(/'/g, "\\'"))}')"
                             style="background: none; border: none; color: #999; cursor: pointer; font-size: 18px; padding: 4px 8px;"
                             title="Remove book">×</button>
                   </td>
@@ -1063,19 +1079,20 @@
         // Check library status if book is released
         if (formData.library_status !== 'not_released') {
           showMessage(`Checking library availability...`, 'info');
-          const libraryStatus = await checkSingleBook(addedBook);
+          const result = await checkSingleBook(addedBook);
 
-          if (libraryStatus) {
-            // Update the book with library status
+          if (result) {
+            // Update the book with library status and overdrive_id
             await supabaseAdmin
               .from('books')
               .update({
-                library_status: libraryStatus,
+                library_status: result.status,
+                overdrive_id: result.overdrive_id,
                 last_checked_at: new Date().toISOString()
               })
               .eq('id', addedBook.id);
 
-            showMessage(`✓ Library status updated: ${formatStatus(libraryStatus)}`, 'success');
+            showMessage(`✓ Library status updated: ${formatStatus(result.status)}`, 'success');
           }
         }
 
@@ -1167,15 +1184,19 @@
         const isAvailable = overdriveBook.isAvailable === true;
         const availableCopies = overdriveBook.availableCopies || 0;
         const isHoldable = overdriveBook.isHoldable === true;
+        const overdriveId = overdriveBook.id || null;
 
         // Determine library status
+        let status;
         if (isAvailable && availableCopies > 0) {
-          return 'available_to_checkout';
+          status = 'available_to_checkout';
         } else if (isHoldable) {
-          return 'available_to_hold';
+          status = 'available_to_hold';
         } else {
-          return 'not_available';
+          status = 'not_available';
         }
+
+        return { status, overdrive_id: overdriveId };
       } catch (error) {
         console.error(`Error checking ${book.title}:`, error);
         return null;
