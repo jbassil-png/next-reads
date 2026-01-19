@@ -812,12 +812,30 @@
           return;
         }
 
-        // Sort ebooks first
+        // Check Overdrive to see which results are available at SFPL
+        let overdriveTitles = new Set();
+        try {
+          const overdriveQuery = encodeURIComponent(title);
+          const overdriveResponse = await fetch(`https://thunder.api.overdrive.com/v2/libraries/sfpl/media?query=${overdriveQuery}`);
+          if (overdriveResponse.ok) {
+            const overdriveData = await overdriveResponse.json();
+            if (overdriveData.items) {
+              // Store all Overdrive titles (lowercase for matching)
+              overdriveData.items.forEach(item => {
+                overdriveTitles.add(item.title.toLowerCase());
+              });
+            }
+          }
+        } catch (error) {
+          console.log('Could not check Overdrive:', error);
+        }
+
+        // Sort books with Overdrive matches first
         const sortedBooks = booksWithISBN.sort((a, b) => {
-          const aIsEbook = a.saleInfo?.isEbook || a.accessInfo?.epub?.isAvailable || a.accessInfo?.pdf?.isAvailable;
-          const bIsEbook = b.saleInfo?.isEbook || b.accessInfo?.epub?.isAvailable || b.accessInfo?.pdf?.isAvailable;
-          if (aIsEbook && !bIsEbook) return -1;
-          if (!aIsEbook && bIsEbook) return 1;
+          const aInOverdrive = overdriveTitles.has(a.volumeInfo.title.toLowerCase());
+          const bInOverdrive = overdriveTitles.has(b.volumeInfo.title.toLowerCase());
+          if (aInOverdrive && !bInOverdrive) return -1;
+          if (!aInOverdrive && bInOverdrive) return 1;
           return 0;
         });
 
@@ -832,12 +850,9 @@
 
           // Show ALL ISBNs
           const allISBNs = info.industryIdentifiers?.map(id => `${id.identifier} (${id.type})`).join(', ') || 'No ISBN';
-          const primaryISBN = info.industryIdentifiers?.find(id => id.type === 'ISBN_13')?.identifier ||
-                              info.industryIdentifiers?.find(id => id.type === 'ISBN_10')?.identifier ||
-                              'No ISBN';
 
           const thumbnail = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || '';
-          const isEbook = item.saleInfo?.isEbook || item.accessInfo?.epub?.isAvailable || item.accessInfo?.pdf?.isAvailable;
+          const inOverdrive = overdriveTitles.has(info.title.toLowerCase());
 
           return `
             <div class="book-result" data-book-index="${index}">
@@ -845,7 +860,7 @@
               <div class="book-info">
                 <div class="book-title">
                   ${escapeHtml(info.title)}
-                  ${isEbook ? '<span style="margin-left: 8px; padding: 2px 8px; background: #4CAF50; color: white; border-radius: 4px; font-size: 12px; font-weight: 600;">eBOOK</span>' : ''}
+                  ${inOverdrive ? '<span style="margin-left: 8px; padding: 2px 8px; background: #FF9800; color: white; border-radius: 4px; font-size: 12px; font-weight: 600;">IN OVERDRIVE</span>' : ''}
                 </div>
                 <div class="book-author">${escapeHtml(authors)}</div>
                 <div class="book-meta">
