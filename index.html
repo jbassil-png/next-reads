@@ -477,6 +477,7 @@
                     <span class="status-badge status-${book.library_status}">
                       ${formatStatus(book.library_status)}
                     </span>
+                    ${isClickable ? '<span style="margin-left: 8px; color: #1976d2; font-size: 14px;">↗</span>' : ''}
                   </td>
                   <td class="days-label">${lastChecked}</td>
                   <td>
