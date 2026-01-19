@@ -544,6 +544,16 @@
       setTimeout(() => { container.innerHTML = ''; }, 5000);
     }
 
+    // Normalize title for matching (remove punctuation, articles, extra spaces)
+    function normalizeTitle(title) {
+      return title
+        .toLowerCase()
+        .replace(/[^\w\s]/g, '') // Remove punctuation
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .replace(/^(a|an|the)\s+/i, '') // Remove leading articles
+        .trim();
+    }
+
     // Autocomplete for book titles and authors
     let autocompleteTimeout;
 
@@ -590,8 +600,11 @@
             if (overdriveResponse.ok) {
               const overdriveData = await overdriveResponse.json();
               if (overdriveData.items) {
+                console.log('Overdrive returned', overdriveData.items.length, 'results for query:', query);
                 overdriveData.items.forEach(item => {
-                  overdriveTitles.add(item.title.toLowerCase());
+                  const normalized = normalizeTitle(item.title);
+                  overdriveTitles.add(normalized);
+                  console.log('  -', item.title, '→', normalized);
                 });
               }
             }
@@ -601,12 +614,18 @@
 
           // Sort books with Overdrive matches first
           const sortedBooks = booksWithISBN.sort((a, b) => {
-            const aInOverdrive = overdriveTitles.has(a.volumeInfo.title.toLowerCase());
-            const bInOverdrive = overdriveTitles.has(b.volumeInfo.title.toLowerCase());
+            const aInOverdrive = overdriveTitles.has(normalizeTitle(a.volumeInfo.title));
+            const bInOverdrive = overdriveTitles.has(normalizeTitle(b.volumeInfo.title));
             if (aInOverdrive && !bInOverdrive) return -1;
             if (!aInOverdrive && bInOverdrive) return 1;
             return 0;
           });
+
+          console.log('Google Books results:', sortedBooks.map(b => ({
+            title: b.volumeInfo.title,
+            normalized: normalizeTitle(b.volumeInfo.title),
+            inOverdrive: overdriveTitles.has(normalizeTitle(b.volumeInfo.title))
+          })));
 
           // Show suggestions
           renderAutocompleteResults(sortedBooks, autocompleteContainer, overdriveTitles);
@@ -660,7 +679,8 @@
               const overdriveData = await overdriveResponse.json();
               if (overdriveData.items) {
                 overdriveData.items.forEach(item => {
-                  overdriveTitles.add(item.title.toLowerCase());
+                  const normalized = normalizeTitle(item.title);
+                  overdriveTitles.add(normalized);
                 });
               }
             }
@@ -670,8 +690,8 @@
 
           // Sort books with Overdrive matches first
           const sortedBooks = booksWithISBN.sort((a, b) => {
-            const aInOverdrive = overdriveTitles.has(a.volumeInfo.title.toLowerCase());
-            const bInOverdrive = overdriveTitles.has(b.volumeInfo.title.toLowerCase());
+            const aInOverdrive = overdriveTitles.has(normalizeTitle(a.volumeInfo.title));
+            const bInOverdrive = overdriveTitles.has(normalizeTitle(b.volumeInfo.title));
             if (aInOverdrive && !bInOverdrive) return -1;
             if (!aInOverdrive && bInOverdrive) return 1;
             return 0;
@@ -688,17 +708,20 @@
 
     // Render autocomplete suggestions
     function renderAutocompleteResults(items, container, overdriveTitles = new Set()) {
+      // Clear previous items and initialize
+      window.autocompleteItems = [];
+
+      // Store items and render
       container.innerHTML = items.map((item, index) => {
         const info = item.volumeInfo;
         const authors = info.authors ? info.authors.join(', ') : 'Unknown Author';
-        const inOverdrive = overdriveTitles.has(info.title.toLowerCase());
+        const inOverdrive = overdriveTitles.has(normalizeTitle(info.title));
 
-        // Store the item in a global array for onclick access
-        if (!window.autocompleteItems) window.autocompleteItems = [];
+        // Store the item for onclick access
         window.autocompleteItems[index] = item;
 
         return `
-          <div class="autocomplete-item" onclick='selectBookFromAutocomplete(window.autocompleteItems[${index}])'>
+          <div class="autocomplete-item" onclick='selectBookFromAutocomplete(${index})'>
             <div class="autocomplete-title">
               ${escapeHtml(info.title)}
               ${inOverdrive ? '<span style="margin-left: 8px; padding: 2px 6px; background: #FF9800; color: white; border-radius: 3px; font-size: 11px; font-weight: 600;">IN OVERDRIVE</span>' : ''}
@@ -712,7 +735,12 @@
     }
 
     // Select book from autocomplete and go directly to confirm step
-    window.selectBookFromAutocomplete = function(bookData) {
+    window.selectBookFromAutocomplete = function(index) {
+      const bookData = window.autocompleteItems[index];
+      if (!bookData) {
+        console.error('No book data found for index', index);
+        return;
+      }
       const info = bookData.volumeInfo;
       const authors = info.authors ? info.authors.join(', ') : '';
       const publishedDate = info.publishedDate || '';
