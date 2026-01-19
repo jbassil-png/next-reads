@@ -6,6 +6,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Normalize title for matching (remove punctuation, articles, extra spaces)
+function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '') // Remove punctuation
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .replace(/^(a|an|the)\s+/i, '') // Remove leading articles
+    .trim()
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -55,14 +65,39 @@ serve(async (req) => {
           continue
         }
 
-        // Find best match (exact title match, or first result)
+        // Find best match using multiple strategies:
+        // 1. If we have all_isbns, try to match by ISBN
+        // 2. Fall back to normalized title matching
         let overdriveBook = searchData.items[0]
-        const exactMatch = searchData.items.find((item: any) =>
-          item.title.toLowerCase() === book.title.toLowerCase()
-        )
-        if (exactMatch) {
-          overdriveBook = exactMatch
+
+        if (book.all_isbns && book.all_isbns.length > 0) {
+          // Try to find a match by ISBN
+          const isbnMatch = searchData.items.find((item: any) => {
+            const overdriveIsbns = item.formats?.map((f: any) => f.isbn).filter(Boolean) || []
+            return book.all_isbns.some((ourIsbn: string) =>
+              overdriveIsbns.some((odIsbn: string) => odIsbn === ourIsbn)
+            )
+          })
+
+          if (isbnMatch) {
+            console.log(`ISBN match found for ${book.title}`)
+            overdriveBook = isbnMatch
+          } else {
+            console.log(`No ISBN match for ${book.title}, using title match`)
+          }
         }
+
+        // If no ISBN match, use normalized title matching
+        if (!overdriveBook || overdriveBook === searchData.items[0]) {
+          const normalizedBookTitle = normalizeTitle(book.title)
+          const titleMatch = searchData.items.find((item: any) =>
+            normalizeTitle(item.title) === normalizedBookTitle
+          )
+          if (titleMatch) {
+            overdriveBook = titleMatch
+          }
+        }
+
         const isAvailable = overdriveBook.isAvailable === true
         const availableCopies = overdriveBook.availableCopies || 0
         const isHoldable = overdriveBook.isHoldable === true
