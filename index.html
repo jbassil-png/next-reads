@@ -367,7 +367,6 @@
         display: block;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        white-space: nowrap;
       }
 
       thead, tbody, tr {
@@ -379,6 +378,18 @@
       th, td {
         padding: 10px 8px;
         font-size: 13px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+      }
+
+      /* Allow title cells to wrap */
+      td:first-child, th:first-child {
+        min-width: 120px;
+      }
+
+      /* Compact status column */
+      td:nth-child(4), th:nth-child(4) {
+        min-width: 100px;
       }
 
       /* Adjust status badges for mobile */
