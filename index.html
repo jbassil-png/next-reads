@@ -382,9 +382,17 @@
         overflow-wrap: break-word;
       }
 
-      /* Allow title cells to wrap */
+      /* Allow title cells to wrap with better balance */
       td:first-child, th:first-child {
-        min-width: 120px;
+        min-width: 140px;
+        text-wrap: pretty;
+        hyphens: auto;
+      }
+
+      /* Better wrapping for author names too */
+      td:nth-child(2), th:nth-child(2) {
+        min-width: 100px;
+        text-wrap: pretty;
       }
 
       /* Compact status column */
