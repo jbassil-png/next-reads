@@ -336,6 +336,119 @@
     .form-group-with-autocomplete {
       position: relative;
     }
+
+    /* Mobile Responsive Styles */
+    @media (max-width: 768px) {
+      body {
+        margin: 16px;
+        font-size: 15px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .header {
+        margin-bottom: 24px;
+      }
+
+      .section {
+        margin-bottom: 32px;
+      }
+
+      /* Stack form fields vertically on mobile */
+      .form-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      /* Make tables scrollable horizontally */
+      table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        white-space: nowrap;
+      }
+
+      thead, tbody, tr {
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+      }
+
+      th, td {
+        padding: 10px 8px;
+        font-size: 13px;
+      }
+
+      /* Adjust status badges for mobile */
+      .status-badge {
+        font-size: 11px;
+        padding: 3px 8px;
+      }
+
+      /* Make buttons more tappable */
+      button {
+        padding: 12px 20px;
+        font-size: 15px;
+        min-height: 44px;
+      }
+
+      button.secondary {
+        margin-left: 0;
+        margin-top: 8px;
+      }
+
+      /* Stack buttons vertically on mobile */
+      .form-step button {
+        width: 100%;
+        margin: 4px 0;
+      }
+
+      /* Reduce padding in cards */
+      .add-book-section {
+        padding: 16px;
+      }
+
+      .card {
+        padding: 16px;
+      }
+
+      /* Better spacing for book results */
+      .book-result {
+        grid-template-columns: 60px 1fr;
+        gap: 12px;
+        padding: 10px;
+      }
+
+      .book-cover {
+        width: 60px;
+        height: 90px;
+      }
+
+      .book-actions {
+        grid-column: 1 / -1;
+        margin-top: 8px;
+      }
+
+      /* Improve autocomplete on mobile */
+      .autocomplete-results {
+        font-size: 14px;
+      }
+
+      .autocomplete-item {
+        padding: 12px;
+      }
+
+      /* Hide less important columns on very small screens */
+      @media (max-width: 480px) {
+        /* Hide "Last Checked" column on very small screens */
+        table th:nth-child(5),
+        table td:nth-child(5) {
+          display: none;
+        }
+      }
+    }
   </style>
 </head>
 <body>
