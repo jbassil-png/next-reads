@@ -115,8 +115,35 @@ serve(async (req) => {
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
     const userEmail = Deno.env.get('USER_EMAIL')
 
-    // Get all books that have been released (to check library status)
+    // First, transition any books from 'not_released' to 'not_available' if their release date has passed
     const today = new Date().toISOString().split('T')[0]
+
+    const { data: releasedBooks, error: releasedError } = await supabase
+      .from('books')
+      .select('*')
+      .lte('release_date', today)
+      .eq('library_status', 'not_released')
+
+    if (releasedError) {
+      console.error('Error fetching released books:', releasedError)
+    } else if (releasedBooks && releasedBooks.length > 0) {
+      console.log(`Transitioning ${releasedBooks.length} books from 'not_released' to 'not_available'...`)
+
+      for (const book of releasedBooks) {
+        const { error: transitionError } = await supabase
+          .from('books')
+          .update({ library_status: 'not_available' })
+          .eq('id', book.id)
+
+        if (transitionError) {
+          console.error(`Failed to transition ${book.title}:`, transitionError)
+        } else {
+          console.log(`Transitioned ${book.title}: not_released → not_available`)
+        }
+      }
+    }
+
+    // Get all books that have been released (to check library status)
     const { data: books, error: fetchError } = await supabase
       .from('books')
       .select('*')
