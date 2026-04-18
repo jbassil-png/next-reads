@@ -167,6 +167,13 @@ serve(async (req) => {
 
         if (!searchResponse.ok) {
           console.error(`Overdrive search failed for ${book.title}: ${searchResponse.status}`)
+
+          // Still update last_checked_at even when search fails
+          await supabase
+            .from('books')
+            .update({ last_checked_at: new Date().toISOString() })
+            .eq('id', book.id)
+
           results.push({ title: book.title, status: 'search_failed' })
           continue
         }
@@ -175,6 +182,13 @@ serve(async (req) => {
 
         if (!searchData.items || searchData.items.length === 0) {
           console.log(`No Overdrive results for ${book.title}`)
+
+          // Still update last_checked_at even when not found
+          await supabase
+            .from('books')
+            .update({ last_checked_at: new Date().toISOString() })
+            .eq('id', book.id)
+
           results.push({ title: book.title, status: 'not_found_in_overdrive' })
           continue
         }
@@ -249,6 +263,12 @@ serve(async (req) => {
               })
             }
           } else {
+            // Book is already not_available and no match found - still update last_checked_at
+            await supabase
+              .from('books')
+              .update({ last_checked_at: new Date().toISOString() })
+              .eq('id', book.id)
+
             results.push({ title: book.title, status: 'no_change', currentStatus: 'not_available' })
           }
 
