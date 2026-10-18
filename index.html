@@ -757,7 +757,11 @@
       autocompleteTimeout = setTimeout(async () => {
         try {
           const searchQuery = encodeURIComponent(query);
-          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=intitle:${searchQuery}&maxResults=20&key=AIzaSyD0--VaSpRBR4YllRbKnvss5HDqON82J5g`);
+          // Note: the Google Books API's intitle: operator started silently
+          // returning 0 results for every query (confirmed 2026-10-17, not a
+          // local code regression) -- using a plain query instead, which
+          // still ranks title matches well via Google's default relevance.
+          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${searchQuery}&maxResults=20&key=AIzaSyD0--VaSpRBR4YllRbKnvss5HDqON82J5g`);
           const data = await response.json();
 
           if (!data.items || data.items.length === 0) {
@@ -816,7 +820,9 @@
       autocompleteTimeout = setTimeout(async () => {
         try {
           const searchQuery = encodeURIComponent(query);
-          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=inauthor:${searchQuery}&maxResults=20&key=AIzaSyD0--VaSpRBR4YllRbKnvss5HDqON82J5g`);
+          // Note: inauthor: has the same broken-operator issue as intitle:
+          // above -- plain query instead (see note in handleTitleAutocomplete).
+          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${searchQuery}&maxResults=20&key=AIzaSyD0--VaSpRBR4YllRbKnvss5HDqON82J5g`);
           const data = await response.json();
 
           if (!data.items || data.items.length === 0) {
@@ -914,8 +920,9 @@
       }
 
       try {
-        // Search for all editions by title and author
-        const searchQuery = encodeURIComponent(`intitle:"${info.title}" ${authors ? 'inauthor:' + authors.split(',')[0] : ''}`);
+        // Search for all editions by title and author.
+        // Plain query, not intitle:/inauthor: -- see note above.
+        const searchQuery = encodeURIComponent(`${info.title} ${authors ? authors.split(',')[0] : ''}`);
         const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${searchQuery}&maxResults=40&key=AIzaSyD0--VaSpRBR4YllRbKnvss5HDqON82J5g`);
         const data = await response.json();
 
@@ -1029,8 +1036,9 @@
       searchBtn.textContent = 'Searching...';
 
       try {
-        // Build search query - try title and author together
-        const query = encodeURIComponent(`intitle:${title} inauthor:${author}`);
+        // Build search query - try title and author together.
+        // Plain query, not intitle:/inauthor: -- see note above.
+        const query = encodeURIComponent(`${title} ${author}`);
         console.log('Searching Google Books:', query);
 
         const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=10&key=AIzaSyD0--VaSpRBR4YllRbKnvss5HDqON82J5g`);
